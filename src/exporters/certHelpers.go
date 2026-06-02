@@ -6,11 +6,11 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/joe-elliott/cert-exporter/src/args"
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
 	"software.sslmate.com/src/go-pkcs12"
@@ -36,7 +36,7 @@ func matchGlobs(s string, globs args.GlobArgs) bool {
 	for _, pattern := range globs {
 		matched, err := filepath.Match(pattern, s)
 		if err != nil {
-			glog.Warningf("Malformed glob pattern '%s' while matching string '%s': %v", pattern, s, err)
+			slog.Warn("Malformed glob pattern while matching string", "pattern", pattern, "string", s, "error", err)
 			continue // Treat malformed pattern as non-matching for this specific pattern
 		}
 		if matched {
@@ -211,6 +211,8 @@ func parseAsJKS(certBytes []byte, certPassword string) (bool, []certMetric, erro
 func parseAsPEM(certBytes []byte) (bool, []certMetric, error) {
 	var metrics []certMetric
 	var pemBlockDecoded bool // Tracks if at least one PEM block was successfully decoded
+	var certBlockFound bool  // Tracks if at least one CERTIFICATE block was present
+	var lastParseErr error   // Last x509 parse error encountered
 
 	data := certBytes
 	for len(data) > 0 {
@@ -224,10 +226,12 @@ func parseAsPEM(certBytes []byte) (bool, []certMetric, error) {
 		pemBlockDecoded = true // Mark that we've found at least one PEM block
 
 		if block.Type == "CERTIFICATE" {
+			certBlockFound = true
 			cert, err := x509.ParseCertificate(block.Bytes)
 			if err != nil {
 				// Log the error for this specific certificate but continue processing others.
-				glog.Warningf("Error parsing an X.509 certificate from a PEM block: %v", err)
+				lastParseErr = err
+				slog.Warn("Error parsing an X.509 certificate from a PEM block", "error", err)
 			} else {
 				metric := getCertificateMetrics(cert)
 				metrics = append(metrics, metric)
@@ -235,7 +239,7 @@ func parseAsPEM(certBytes []byte) (bool, []certMetric, error) {
 		} else {
 			// A PEM block was found, but it's not of type "CERTIFICATE".
 			// Log this information if verbose logging is enabled and skip it.
-			glog.V(2).Infof("Skipping PEM block of type '%s'", block.Type)
+			slog.Debug("Skipping PEM block of non-certificate type", "type", block.Type)
 		}
 
 		// Move to the rest of the data for the next iteration.
@@ -245,6 +249,13 @@ func parseAsPEM(certBytes []byte) (bool, []certMetric, error) {
 	if !pemBlockDecoded {
 		// If no PEM blocks were decoded at all, the input is not considered PEM.
 		return false, nil, fmt.Errorf("no PEM data found in input")
+	}
+
+	// If CERTIFICATE blocks were present but none of them parsed successfully,
+	// surface an error so monitoring can detect corrupt certificate data
+	// instead of silently reporting zero metrics.
+	if certBlockFound && len(metrics) == 0 {
+		return true, nil, fmt.Errorf("found CERTIFICATE PEM block(s) but none could be parsed: %w", lastParseErr)
 	}
 
 	// If at least one PEM block was decoded, the input is considered to be PEM.

@@ -7,7 +7,6 @@ require (
 	github.com/bmatcuk/doublestar/v4 v4.8.1
 	github.com/cert-manager/cert-manager v1.13.0
 	github.com/gobwas/glob v0.2.3
-	github.com/golang/glog v1.2.5
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.5.0
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2

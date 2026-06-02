@@ -110,17 +110,17 @@ func TestFilterMetrics(t *testing.T) {
 	}
 
 	tests := []struct {
-		name              string
-		excludeCNGlobs    args.GlobArgs
-		excludeAliasGlobs args.GlobArgs
+		name               string
+		excludeCNGlobs     args.GlobArgs
+		excludeAliasGlobs  args.GlobArgs
 		excludeIssuerGlobs args.GlobArgs
-		wantCount         int
-		wantCNs           []string
+		wantCount          int
+		wantCNs            []string
 	}{
 		{
-			name:       "no exclude globs - all pass through",
-			wantCount:  4,
-			wantCNs:    []string{"web.example.com", "internal.corp.local", "api.example.com", "db.internal"},
+			name:      "no exclude globs - all pass through",
+			wantCount: 4,
+			wantCNs:   []string{"web.example.com", "internal.corp.local", "api.example.com", "db.internal"},
 		},
 		{
 			name:           "exclude by CN glob",
@@ -129,10 +129,10 @@ func TestFilterMetrics(t *testing.T) {
 			wantCNs:        []string{"internal.corp.local", "db.internal"},
 		},
 		{
-			name:              "exclude by issuer glob",
+			name:               "exclude by issuer glob",
 			excludeIssuerGlobs: args.GlobArgs{"Internal CA"},
-			wantCount:         2,
-			wantCNs:           []string{"web.example.com", "api.example.com"},
+			wantCount:          2,
+			wantCNs:            []string{"web.example.com", "api.example.com"},
 		},
 		{
 			name:              "exclude by alias glob",
@@ -141,11 +141,11 @@ func TestFilterMetrics(t *testing.T) {
 			wantCNs:           []string{"internal.corp.local"}, // only one without alias (empty alias doesn't match)
 		},
 		{
-			name:              "exclude by multiple criteria",
-			excludeCNGlobs:    args.GlobArgs{"web.*"},
+			name:               "exclude by multiple criteria",
+			excludeCNGlobs:     args.GlobArgs{"web.*"},
 			excludeIssuerGlobs: args.GlobArgs{"DigiCert"},
-			wantCount:         2,
-			wantCNs:           []string{"internal.corp.local", "db.internal"},
+			wantCount:          2,
+			wantCNs:            []string{"internal.corp.local", "db.internal"},
 		},
 		{
 			name:           "exclude all with wildcard",

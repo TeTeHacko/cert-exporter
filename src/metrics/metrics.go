@@ -216,7 +216,7 @@ var (
 		[]string{"type_name", "issuer", "cn", "webhook_name", "admission_review_version_name"},
 	)
 
-	// BuildInfo is a prometheus gauge that shows build information about the cert-exporter 
+	// BuildInfo is a prometheus gauge that shows build information about the cert-exporter
 	BuildInfo = versioncollector.NewCollector("cert_exporter")
 )
 

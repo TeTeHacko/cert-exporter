@@ -151,7 +151,7 @@ func TestParseAsPEM(t *testing.T) {
 			},
 			wantParsed:  true,
 			wantMetrics: 0,
-			wantErr:     false, // parseAsPEM now logs warning and continues (robust behavior)
+			wantErr:     true, // CERTIFICATE block present but unparseable -> error (monitoring visibility)
 		},
 	}
 
