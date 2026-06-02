@@ -84,7 +84,7 @@ cert_exporter_error_total 0
 cert_exporter_discovered 0
 # HELP cert_exporter_cert_expires_in_seconds Number of seconds til the cert expires.
 # TYPE cert_exporter_cert_expires_in_seconds gauge
-cert_exporter_cert_expires_in_seconds{filename="certsSibling/client.crt",issuer="root",nodename="master0"} 8.639964560021e+06
+cert_exporter_cert_expires_in_seconds{alias="",cn="client",filename="certsSibling/client.crt",issuer="root",nodename="master0"} 8.639964560021e+06
 # HELP cert_exporter_kubeconfig_expires_in_seconds Number of seconds til the cert in kubeconfig expires.
 # TYPE cert_exporter_kubeconfig_expires_in_seconds gauge
 cert_exporter_kubeconfig_expires_in_seconds{filename="kubeConfigSibling/kubeconfig",name="cluster1",nodename="master0",type="cluster"} 8.639964559682e+06
@@ -112,6 +112,8 @@ The total number of unexpected errors encountered by cert-exporter.  A good metr
 
 **cert_exporter_cert_expires_in_seconds**  
 The number of seconds until a certificate stored in the PEM format is expired.  The `filename`, `issuer`, `cn`, `nodename`, and `alias` labels indicate the exported cert. The `alias` label carries the JKS entry alias for certificates read from Java KeyStores; it is empty (`alias=""`) for PEM and PKCS#12 files.
+
+> **Breaking change:** The `alias` label was added to `cert_exporter_cert_expires_in_seconds`, `cert_exporter_cert_not_after_timestamp`, and `cert_exporter_cert_not_before_timestamp`. Existing PromQL queries, dashboards, and alerts that match an exact label set on these metrics may need to be updated to account for the new (empty by default) `alias` label.
 
 **cert_exporter_kubeconfig_expires_in_seconds**  
 The number of seconds until a certificate stored in a kubeconfig expires.  The `filename`, `type`, `name`, and `nodename` labels indicate the kubeconfig, cluster or user node and name of the node.  See details [here](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).

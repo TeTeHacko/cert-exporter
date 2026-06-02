@@ -63,10 +63,10 @@ Output:
 ```
 ** Testing Certs and kubeconfig in the same dir
 cert_exporter_error_total 0
-TEST SUCCESS: cert_exporter_cert_expires_in_seconds{filename="certs/client.crt",issuer="root",nodename="master0"}
-TEST SUCCESS: cert_exporter_cert_expires_in_seconds{filename="certs/root.crt",issuer="root",nodename="master0"}
-TEST SUCCESS: cert_exporter_cert_expires_in_seconds{filename="certs/server.crt",issuer="root",nodename="master0"}
-TEST SUCCESS: cert_exporter_kubeconfig_expires_in_seconds{filename="certs/kubeconfig",name="cluster1",nodename="master0",type="cluster"}
+TEST SUCCESS: cert_exporter_cert_expires_in_seconds{alias="",cn="client",filename="certs/client.crt",issuer="root",nodename="master0"}
+TEST SUCCESS: cert_exporter_cert_expires_in_seconds{alias="",cn="root",filename="certs/root.crt",issuer="root",nodename="master0"}
+TEST SUCCESS: cert_exporter_cert_expires_in_seconds{alias="",cn="example.com",filename="certs/server.crt",issuer="root",nodename="master0"}
+TEST SUCCESS: cert_exporter_kubeconfig_expires_in_seconds{cn="root",filename="certs/kubeconfig",issuer="root",name="cluster1",nodename="master0",type="cluster"}
 ...
 ```
 
