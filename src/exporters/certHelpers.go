@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"time"
 
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/joe-elliott/cert-exporter/src/args"
 	"github.com/pavlo-v-chernykh/keystore-go/v4"
 	"software.sslmate.com/src/go-pkcs12"
@@ -24,17 +24,15 @@ type certMetric struct {
 	Alias               string // New field for JKS alias
 }
 
+// matchGlobs reports whether s matches any of the supplied glob patterns.
+// It uses github.com/bmatcuk/doublestar (already used upstream for cert file
+// globbing) so all glob matching in the project stays consistent and supports
+// advanced patterns such as "**" and "{a,b}". Note that "/" is treated as a
+// separator: "*" does not cross "/", while "**" does. An empty pattern matches
+// only the empty string, and "*" matches any value without a "/".
 func matchGlobs(s string, globs args.GlobArgs) bool {
-	if s == "" { // An empty string (e.g. alias for non-JKS or empty CN) should not match unless glob is explicitly "" or "*"
-		for _, pattern := range globs {
-			if pattern == "" || pattern == "*" { // only match if glob is "" or "*"
-				return true
-			}
-		}
-		return false
-	}
 	for _, pattern := range globs {
-		matched, err := filepath.Match(pattern, s)
+		matched, err := doublestar.Match(pattern, s)
 		if err != nil {
 			slog.Warn("Malformed glob pattern while matching string", "pattern", pattern, "string", s, "error", err)
 			continue // Treat malformed pattern as non-matching for this specific pattern

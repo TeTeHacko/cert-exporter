@@ -2,6 +2,8 @@ package args
 
 import (
 	"testing"
+
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 func TestPasswordSpecFlag_Set(t *testing.T) {
@@ -77,9 +79,6 @@ func TestPasswordSpecFlag_Set(t *testing.T) {
 				if psf[0].Password != tt.wantPass {
 					t.Errorf("Password = %q, want %q", psf[0].Password, tt.wantPass)
 				}
-				if psf[0].CompiledGlob == nil {
-					t.Error("CompiledGlob should not be nil")
-				}
 			}
 		})
 	}
@@ -141,13 +140,21 @@ func TestPasswordSpecFlag_GlobMatching(t *testing.T) {
 	var psf PasswordSpecFlag
 	psf.Set("/etc/ssl/*.jks:jkspass")
 
-	if !psf[0].CompiledGlob.Match("/etc/ssl/keystore.jks") {
+	mustMatch := func(path string) bool {
+		matched, err := doublestar.Match(psf[0].GlobPattern, path)
+		if err != nil {
+			t.Fatalf("unexpected glob error: %v", err)
+		}
+		return matched
+	}
+
+	if !mustMatch("/etc/ssl/keystore.jks") {
 		t.Error("Glob should match /etc/ssl/keystore.jks")
 	}
-	if psf[0].CompiledGlob.Match("/etc/ssl/cert.pem") {
+	if mustMatch("/etc/ssl/cert.pem") {
 		t.Error("Glob should not match /etc/ssl/cert.pem")
 	}
-	if psf[0].CompiledGlob.Match("/opt/ssl/keystore.jks") {
+	if mustMatch("/opt/ssl/keystore.jks") {
 		t.Error("Glob should not match /opt/ssl/keystore.jks")
 	}
 }

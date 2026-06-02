@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gobwas/glob"
+	"github.com/bmatcuk/doublestar/v4"
 )
 
 // PasswordSpec defines a glob pattern and its associated password.
 type PasswordSpec struct {
-	GlobPattern  string
-	Password     string
-	CompiledGlob glob.Glob
+	GlobPattern string
+	Password    string
 }
 
 // PasswordSpecFlag is a custom flag type for collecting multiple PasswordSpec.
@@ -43,15 +42,13 @@ func (psf *PasswordSpecFlag) Set(value string) error {
 		return fmt.Errorf("glob pattern cannot be empty in password spec %q", value)
 	}
 
-	g, err := glob.Compile(globPattern)
-	if err != nil {
-		return fmt.Errorf("invalid glob pattern %q in spec %q: %w", globPattern, value, err)
+	if !doublestar.ValidatePattern(globPattern) {
+		return fmt.Errorf("invalid glob pattern %q in spec %q", globPattern, value)
 	}
 
 	*psf = append(*psf, PasswordSpec{
-		GlobPattern:  globPattern,
-		Password:     password,
-		CompiledGlob: g,
+		GlobPattern: globPattern,
+		Password:    password,
 	})
 	return nil
 }
