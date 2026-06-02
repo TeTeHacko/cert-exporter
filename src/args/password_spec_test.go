@@ -1,6 +1,8 @@
 package args
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -170,4 +172,87 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestLoadPasswordSpecsFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "specs.txt")
+	content := "# comment line\n" +
+		"\n" +
+		"/etc/ssl/*.jks:jkspass\n" +
+		"  /opt/certs/*.p12:p12pass  \n" + // leading space before glob is trimmed; trailing kept on pass
+		"/var/lib/**/*.pem:pem:with:colons\r\n" + // CRLF line ending
+		"   \n" + // whitespace-only line ignored
+		"# another comment\n"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+
+	specs, err := LoadPasswordSpecsFromFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(specs) != 3 {
+		t.Fatalf("expected 3 specs, got %d: %+v", len(specs), specs)
+	}
+	if specs[0].GlobPattern != "/etc/ssl/*.jks" || specs[0].Password != "jkspass" {
+		t.Errorf("spec[0] = %+v", specs[0])
+	}
+	if specs[1].GlobPattern != "/opt/certs/*.p12" {
+		t.Errorf("spec[1] glob = %q, want /opt/certs/*.p12", specs[1].GlobPattern)
+	}
+	if specs[2].GlobPattern != "/var/lib/**/*.pem" || specs[2].Password != "pem:with:colons" {
+		t.Errorf("spec[2] = %+v (CRLF should be stripped, colons preserved)", specs[2])
+	}
+}
+
+func TestLoadPasswordSpecsFromFile_Errors(t *testing.T) {
+	if _, err := LoadPasswordSpecsFromFile("/nonexistent/path/specs.txt"); err == nil {
+		t.Error("expected error for missing file, got nil")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "bad.txt")
+	if err := os.WriteFile(path, []byte("/ok/*.jks:pass\nno-colon-here\n"), 0o600); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	_, err := LoadPasswordSpecsFromFile(path)
+	if err == nil {
+		t.Error("expected error for malformed line, got nil")
+	}
+	if !contains(err.Error(), "line 2") {
+		t.Errorf("error should reference line 2, got: %v", err)
+	}
+}
+
+func TestLoadPasswordFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pass.txt")
+	if err := os.WriteFile(path, []byte("supersecret\n"), 0o600); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+
+	pw, err := LoadPasswordFromFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pw != "supersecret" {
+		t.Errorf("password = %q, want %q (trailing newline stripped)", pw, "supersecret")
+	}
+
+	// CRLF variant
+	if err := os.WriteFile(path, []byte("crlfpass\r\n"), 0o600); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+	pw, err = LoadPasswordFromFile(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if pw != "crlfpass" {
+		t.Errorf("password = %q, want %q", pw, "crlfpass")
+	}
+
+	if _, err := LoadPasswordFromFile("/nonexistent/pass.txt"); err == nil {
+		t.Error("expected error for missing file, got nil")
+	}
 }

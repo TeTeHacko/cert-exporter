@@ -33,6 +33,18 @@ For certificate files on disk (PEM, PKCS#12, JKS) or those referenced in kubecon
 - **Default Password:**
   Use the `-cert-file-password "default_password"` flag to set a fallback password if no `-cert-password-spec` rule matches a file.
 
+> **Security note:** Passwords passed on the command line are visible to other
+> users via process listings (`ps`), `/proc`, and container inspection.
+> `cert-exporter` will log a warning when `-cert-file-password` or
+> `-cert-password-spec` are used. Prefer the file-based variants below, which
+> keep secrets off the command line:
+>
+> - `-cert-file-password-file /path/to/password` — file containing the default
+>   password (a single trailing newline is stripped).
+> - `-cert-password-spec-file /path/to/specs` — file with one
+>   `glob_pattern:password` per line. Blank lines and lines starting with `#`
+>   are ignored. CLI specs (if any) take precedence over file specs.
+
 If a file is password-protected and no matching password is provided (either via a specific spec or the default), parsing will likely fail for that file, and an error will be logged.
 
 See [custom-secrets](./docs/examples/custom-secrets) for examples of how to run `cert-exporter` to scrape certificates in secrets managed by you (not cert-manager).

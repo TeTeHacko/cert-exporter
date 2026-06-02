@@ -63,7 +63,9 @@ var (
 	certRequestsNamespace             string
 	certRequestsListOfNamespaces      string
 	defaultCertFilePassword           string
+	defaultCertFilePasswordFile       string
 	passwordSpecs                     args.PasswordSpecFlag
+	passwordSpecFile                  string
 	excludeCertCNGlobs                args.GlobArgs
 	excludeCertAliasGlobs             args.GlobArgs
 	excludeCertIssuerGlobs            args.GlobArgs
@@ -78,8 +80,10 @@ func init() {
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
 	flag.StringVar(&prometheusListenAddress, "prometheus-listen-address", ":8080", "The address to listen on for Prometheus scrapes.")
 	flag.BoolVar(&prometheusExporterMetricsDisabled, "prometheus-disable-exporter-metrics", false, "Exclude metrics about the exporter itself (promhttp_*, process_*, go_*).")
-	flag.StringVar(&defaultCertFilePassword, "cert-file-password", "", "Default password for certificate files (PEM, PKCS12, JKS) if no specific rule from -cert-password-spec matches.")
-	flag.Var(&passwordSpecs, "cert-password-spec", "Per-file/glob password specification in 'glob:password' format. Can be specified multiple times. Applied in order; first match wins. Example: '/path/*.jks:myjkspass'")
+	flag.StringVar(&defaultCertFilePassword, "cert-file-password", "", "Default password for certificate files (PEM, PKCS12, JKS) if no specific rule from -cert-password-spec matches. INSECURE: visible in process listings, prefer -cert-file-password-file.")
+	flag.StringVar(&defaultCertFilePasswordFile, "cert-file-password-file", "", "Path to a file containing the default certificate password. Secure alternative to -cert-file-password.")
+	flag.Var(&passwordSpecs, "cert-password-spec", "Per-file/glob password specification in 'glob:password' format. Can be specified multiple times. Applied in order; first match wins. Example: '/path/*.jks:myjkspass'. INSECURE: visible in process listings, prefer -cert-password-spec-file.")
+	flag.StringVar(&passwordSpecFile, "cert-password-spec-file", "", "Path to a file with per-file/glob password specs, one 'glob:password' per line (# comments and blank lines ignored). Secure alternative to -cert-password-spec.")
 	flag.Var(&excludeCertCNGlobs, "exclude-cert-cn-glob", "Glob patterns for Common Names (CNs) to exclude from certificate metrics. Can be specified multiple times.")
 	flag.Var(&excludeCertAliasGlobs, "exclude-cert-alias-glob", "Glob patterns for JKS aliases to exclude from certificate metrics. Can be specified multiple times.")
 	flag.Var(&excludeCertIssuerGlobs, "exclude-cert-issuer-glob", "Glob patterns for Issuers to exclude from certificate metrics. Can be specified multiple times.")
@@ -125,12 +129,34 @@ func main() {
 	flag.Parse()
 	metrics.Init(prometheusExporterMetricsDisabled, nil)
 
-	// Check if --logtostderr was explicitly set
+	// Check if --logtostderr was explicitly set, and warn about insecure password flags.
 	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "logtostderr" {
+		switch f.Name {
+		case "logtostderr":
 			slog.Warn("Flag --logtostderr is deprecated and has no effect. Logs are always written to stderr. This flag will be removed in a future version.")
+		case "cert-file-password", "cert-password-spec":
+			slog.Warn("Supplying a certificate password on the command line is insecure; it may be exposed via process listings (ps), /proc, or container inspection. Prefer the *-file variant.", "flag", f.Name)
 		}
 	})
+
+	// Load passwords from files (secure alternative to the CLI flags).
+	if defaultCertFilePasswordFile != "" {
+		pw, err := args.LoadPasswordFromFile(defaultCertFilePasswordFile)
+		if err != nil {
+			slog.Error("Failed to load default certificate password from file", "error", err)
+			os.Exit(1)
+		}
+		defaultCertFilePassword = pw
+	}
+	if passwordSpecFile != "" {
+		fileSpecs, err := args.LoadPasswordSpecsFromFile(passwordSpecFile)
+		if err != nil {
+			slog.Error("Failed to load certificate password specs from file", "error", err)
+			os.Exit(1)
+		}
+		// CLI specs keep precedence (first match wins), file specs are appended.
+		passwordSpecs = append(passwordSpecs, fileSpecs...)
+	}
 
 	slog.Info("Starting cert-exporter", "version", version, "commit", commit, "date", date)
 	slog.Info("pprof profiling endpoints available at /debug/pprof/")
