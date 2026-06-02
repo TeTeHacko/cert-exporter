@@ -111,7 +111,7 @@ The number of discovered certs after the include and exclude globs are factored 
 The total number of unexpected errors encountered by cert-exporter.  A good metric to watch to feel comfortable certs are being exported properly.
 
 **cert_exporter_cert_expires_in_seconds**  
-The number of seconds until a certificate stored in the PEM format is expired.  The `filename`, `issuer`, `cn`, and `nodename` label indicates the exported cert.
+The number of seconds until a certificate stored in the PEM format is expired.  The `filename`, `issuer`, `cn`, `nodename`, and `alias` labels indicate the exported cert. The `alias` label carries the JKS entry alias for certificates read from Java KeyStores; it is empty (`alias=""`) for PEM and PKCS#12 files.
 
 **cert_exporter_kubeconfig_expires_in_seconds**  
 The number of seconds until a certificate stored in a kubeconfig expires.  The `filename`, `type`, `name`, and `nodename` labels indicate the kubeconfig, cluster or user node and name of the node.  See details [here](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
