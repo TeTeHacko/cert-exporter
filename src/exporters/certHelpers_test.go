@@ -151,7 +151,7 @@ func TestParseAsPEM(t *testing.T) {
 			},
 			wantParsed:  true,
 			wantMetrics: 0,
-			wantErr:     true,
+			wantErr:     false, // parseAsPEM now logs warning and continues (robust behavior)
 		},
 	}
 

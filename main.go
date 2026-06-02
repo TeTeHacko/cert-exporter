@@ -67,6 +67,7 @@ var (
 	excludeCertCNGlobs                args.GlobArgs
 	excludeCertAliasGlobs             args.GlobArgs
 	excludeCertIssuerGlobs            args.GlobArgs
+	deprecatedLogtostderr             bool
 )
 
 func init() {

@@ -123,6 +123,7 @@ func TestCertExpirySecondsLabels(t *testing.T) {
 		"issuer":   "Test CA",
 		"cn":       "test.example.com",
 		"nodename": "node1",
+		"alias":    "",
 	}
 
 	// This should not panic
@@ -141,6 +142,7 @@ func TestCertNotAfterTimestampLabels(t *testing.T) {
 		"issuer":   "Test CA",
 		"cn":       "test.example.com",
 		"nodename": "node1",
+		"alias":    "",
 	}
 
 	gauge := CertNotAfterTimestamp.With(labels)
@@ -156,6 +158,7 @@ func TestCertNotBeforeTimestampLabels(t *testing.T) {
 		"issuer":   "Test CA",
 		"cn":       "test.example.com",
 		"nodename": "node1",
+		"alias":    "",
 	}
 
 	gauge := CertNotBeforeTimestamp.With(labels)
