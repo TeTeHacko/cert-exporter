@@ -163,6 +163,9 @@ func main() {
 
 	if len(includeCertGlobs) > 0 {
 		certChecker := checkers.NewCertChecker(pollingPeriod, includeCertGlobs, excludeCertGlobs, os.Getenv("NODE_NAME"), exporters.NewCertExporter(passwordSpecs, defaultCertFilePassword, excludeCertCNGlobs, excludeCertAliasGlobs, excludeCertIssuerGlobs))
+		// Only the cert-file checker owns the shared discovered gauge; the
+		// kubeconfig checker below must not overwrite it (single global gauge).
+		certChecker.TrackDiscovered = true
 		go certChecker.StartChecking()
 	}
 

@@ -32,12 +32,12 @@ func TestPeriodicCertChecker_GetMatches(t *testing.T) {
 	testutil.WriteCertToFile(t, cert1.CertPEM, filepath.Join(tmpDir, "dir2", "excluded.crt"))
 
 	tests := []struct {
-		name           string
-		includeGlobs   []string
-		excludeGlobs   []string
-		expectedCount  int
-		expectedFiles  []string
-		notExpected    []string
+		name          string
+		includeGlobs  []string
+		excludeGlobs  []string
+		expectedCount int
+		expectedFiles []string
+		notExpected   []string
 	}{
 		{
 			name:          "single include glob - all .crt files",
@@ -259,5 +259,57 @@ func TestPeriodicCertChecker_ErrorHandling(t *testing.T) {
 
 	if !validMetricFound {
 		t.Error("Expected to find metrics for valid certificate despite error in invalid certificate")
+	}
+}
+
+// TestPeriodicCertChecker_TrackDiscovered verifies that only a checker which
+// opts in via TrackDiscovered updates the shared cert_exporter_discovered
+// gauge. This guards against the race where the cert-file and kubeconfig
+// checkers, both PeriodicCertCheckers, overwrite the single global gauge.
+func TestPeriodicCertChecker_TrackDiscovered(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	metrics.Init(true, testRegistry)
+
+	tmpDir := testutil.CreateTempCertDir(t)
+
+	for _, name := range []string{"a.crt", "b.crt"} {
+		if err := os.WriteFile(filepath.Join(tmpDir, name), []byte("test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	includeGlobs := []string{tmpDir + "/*.crt"}
+
+	readDiscovered := func() float64 {
+		mfs, err := testRegistry.Gather()
+		if err != nil {
+			t.Fatalf("Failed to gather metrics: %v", err)
+		}
+		for _, mf := range mfs {
+			if mf.GetName() == "cert_exporter_discovered" {
+				return mf.GetMetric()[0].GetGauge().GetValue()
+			}
+		}
+		t.Fatal("cert_exporter_discovered gauge not found")
+		return 0
+	}
+
+	// Seed a sentinel so we can tell "left untouched" apart from "set to 0".
+	metrics.Discovered.Set(-1)
+
+	// A checker that does not own the gauge must leave it untouched, so a
+	// concurrent checker (e.g. the kubeconfig checker) cannot race on it.
+	silent := NewCertChecker(time.Hour, includeGlobs, nil, "test-node", &exporters.CertExporter{})
+	silent.getMatches()
+	if got := readDiscovered(); got != -1 {
+		t.Errorf("checker with TrackDiscovered=false modified the gauge: got %v, want -1", got)
+	}
+
+	// The owning checker must set the gauge to the number of discovered files.
+	tracking := NewCertChecker(time.Hour, includeGlobs, nil, "test-node", &exporters.CertExporter{})
+	tracking.TrackDiscovered = true
+	tracking.getMatches()
+	if got := readDiscovered(); got != 2 {
+		t.Errorf("expected cert_exporter_discovered = 2, got %v", got)
 	}
 }

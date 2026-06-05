@@ -50,6 +50,13 @@ type PeriodicCertChecker struct {
 	excludeCertGlobs []*certGlob
 	nodeName         string
 	exporter         exporters.Exporter
+
+	// TrackDiscovered controls whether this checker updates the shared
+	// cert_exporter_discovered gauge. That gauge is a single global value,
+	// so only one checker may own it; otherwise concurrent checkers (e.g.
+	// the cert-file and kubeconfig checkers) race and overwrite each
+	// other's value. Defaults to false; the cert-file checker opts in.
+	TrackDiscovered bool
 }
 
 // NewCertChecker is a factory method that returns a new PeriodicCertChecker
@@ -130,7 +137,9 @@ func (p *PeriodicCertChecker) getMatches() []string {
 		}
 	}
 
-	metrics.Discovered.Set(float64(len(set)))
+	if p.TrackDiscovered {
+		metrics.Discovered.Set(float64(len(set)))
+	}
 
 	res := make([]string, len(set))
 	i := 0
