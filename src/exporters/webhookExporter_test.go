@@ -10,7 +10,7 @@ import (
 
 func TestWebhookExporter_ExportMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -84,7 +84,7 @@ func TestWebhookExporter_ExportMetrics(t *testing.T) {
 
 func TestWebhookExporter_ExportMetrics_ValidatingWebhook(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -133,7 +133,7 @@ func TestWebhookExporter_ExportMetrics_ValidatingWebhook(t *testing.T) {
 
 func TestWebhookExporter_ExportMetrics_Bundle(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate CA and signed cert
 	caCert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -201,7 +201,7 @@ func TestWebhookExporter_ExportMetrics_Bundle(t *testing.T) {
 
 func TestWebhookExporter_ExportMetrics_MultipleWebhooks(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificates
 	cert1 := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -259,7 +259,7 @@ func TestWebhookExporter_ExportMetrics_MultipleWebhooks(t *testing.T) {
 
 func TestWebhookExporter_ExportMetrics_InvalidCert(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	exporter := &WebhookExporter{}
 	exporter.ResetMetrics()
@@ -273,7 +273,7 @@ func TestWebhookExporter_ExportMetrics_InvalidCert(t *testing.T) {
 
 func TestWebhookExporter_ResetMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate and export test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -327,7 +327,7 @@ func TestWebhookExporter_ResetMetrics(t *testing.T) {
 
 func TestWebhookExporter_LabelValues(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{

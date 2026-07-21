@@ -11,7 +11,7 @@ import (
 
 func TestAwsExporter_ExportMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -64,7 +64,7 @@ func TestAwsExporter_ExportMetrics(t *testing.T) {
 
 func TestAwsExporter_ExportMetrics_InvalidBase64(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	exporter := &AwsExporter{}
 	exporter.ResetMetrics()
@@ -78,7 +78,7 @@ func TestAwsExporter_ExportMetrics_InvalidBase64(t *testing.T) {
 
 func TestAwsExporter_ExportMetrics_InvalidCertificate(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	exporter := &AwsExporter{}
 	exporter.ResetMetrics()
@@ -93,7 +93,7 @@ func TestAwsExporter_ExportMetrics_InvalidCertificate(t *testing.T) {
 
 func TestAwsExporter_ResetMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate and export test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -149,7 +149,7 @@ func TestAwsExporter_ResetMetrics(t *testing.T) {
 
 func TestAwsExporter_MultipleSecrets(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate multiple certificates
 	cert1 := testutil.GenerateCertificate(t, testutil.CertConfig{

@@ -110,7 +110,7 @@ func TestNewAwsChecker_MultipleSecrets(t *testing.T) {
 
 func TestPeriodicAwsChecker_ProcessSecret_Success(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -183,7 +183,7 @@ func TestPeriodicAwsChecker_ProcessSecret_Success(t *testing.T) {
 
 func TestPeriodicAwsChecker_ProcessSecret_RawPEM(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -250,7 +250,7 @@ func TestPeriodicAwsChecker_ProcessSecret_RawPEM(t *testing.T) {
 
 func TestPeriodicAwsChecker_ProcessSecret_KeyFiltering(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -374,7 +374,7 @@ func TestPeriodicAwsChecker_ProcessSecret_InvalidJSON(t *testing.T) {
 
 func TestPeriodicAwsChecker_CheckSecrets_MultipleSecrets(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificates
 	cert1 := testutil.GenerateCertificate(t, testutil.CertConfig{

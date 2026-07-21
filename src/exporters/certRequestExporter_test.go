@@ -11,7 +11,7 @@ import (
 
 func TestCertRequestExporter_ExportMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -85,7 +85,7 @@ func TestCertRequestExporter_ExportMetrics(t *testing.T) {
 
 func TestCertRequestExporter_ExportMetrics_Bundle(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate CA and signed cert
 	caCert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -153,7 +153,7 @@ func TestCertRequestExporter_ExportMetrics_Bundle(t *testing.T) {
 
 func TestCertRequestExporter_ExportMetrics_MultipleNamespaces(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificates
 	cert1 := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -211,7 +211,7 @@ func TestCertRequestExporter_ExportMetrics_MultipleNamespaces(t *testing.T) {
 
 func TestCertRequestExporter_ExportMetrics_InvalidCert(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	exporter := &CertRequestExporter{}
 	exporter.ResetMetrics()
@@ -225,7 +225,7 @@ func TestCertRequestExporter_ExportMetrics_InvalidCert(t *testing.T) {
 
 func TestCertRequestExporter_ResetMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate and export test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -279,7 +279,7 @@ func TestCertRequestExporter_ResetMetrics(t *testing.T) {
 
 func TestCertRequestExporter_LabelValues(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate with specific issuer
 	caCert := testutil.GenerateCertificate(t, testutil.CertConfig{

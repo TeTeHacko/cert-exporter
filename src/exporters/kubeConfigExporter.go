@@ -41,9 +41,10 @@ func (c *KubeConfigExporter) ExportMetrics(file, nodeName string) error {
 		}
 
 		for _, metric := range metricCollection {
-			metrics.KubeConfigExpirySeconds.WithLabelValues(file, "cluster", metric.cn, metric.issuer, c.Name, nodeName).Set(metric.durationUntilExpiry)
-			metrics.KubeConfigNotAfterTimestamp.WithLabelValues(file, "cluster", metric.cn, metric.issuer, c.Name, nodeName).Set(metric.notAfter)
-			metrics.KubeConfigNotBeforeTimestamp.WithLabelValues(file, "cluster", metric.cn, metric.issuer, c.Name, nodeName).Set(metric.notBefore)
+			labels := metrics.AppendSerial([]string{file, "cluster", metric.cn, metric.issuer, c.Name, nodeName}, metric.serial)
+			metrics.KubeConfigExpirySeconds.WithLabelValues(labels...).Set(metric.durationUntilExpiry)
+			metrics.KubeConfigNotAfterTimestamp.WithLabelValues(labels...).Set(metric.notAfter)
+			metrics.KubeConfigNotBeforeTimestamp.WithLabelValues(labels...).Set(metric.notBefore)
 		}
 	}
 
@@ -68,9 +69,10 @@ func (c *KubeConfigExporter) ExportMetrics(file, nodeName string) error {
 		}
 
 		for _, metric := range metricCollection {
-			metrics.KubeConfigExpirySeconds.WithLabelValues(file, "user", metric.cn, metric.issuer, u.Name, nodeName).Set(metric.durationUntilExpiry)
-			metrics.KubeConfigNotAfterTimestamp.WithLabelValues(file, "user", metric.cn, metric.issuer, u.Name, nodeName).Set(metric.notAfter)
-			metrics.KubeConfigNotBeforeTimestamp.WithLabelValues(file, "user", metric.cn, metric.issuer, u.Name, nodeName).Set(metric.notBefore)
+			labels := metrics.AppendSerial([]string{file, "user", metric.cn, metric.issuer, u.Name, nodeName}, metric.serial)
+			metrics.KubeConfigExpirySeconds.WithLabelValues(labels...).Set(metric.durationUntilExpiry)
+			metrics.KubeConfigNotAfterTimestamp.WithLabelValues(labels...).Set(metric.notAfter)
+			metrics.KubeConfigNotBeforeTimestamp.WithLabelValues(labels...).Set(metric.notBefore)
 		}
 	}
 

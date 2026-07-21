@@ -63,6 +63,7 @@ var (
 	certRequestsNamespace             string
 	certRequestsListOfNamespaces      string
 	deprecatedLogtostderr             bool
+	includeSerialLabel          bool
 )
 
 func init() {
@@ -109,11 +110,12 @@ func init() {
 	flag.StringVar(&certRequestsListOfNamespaces, "certrequests-namespaces", "", "Kubernetes comma-delimited list of namespaces to search for certrequests.")
 
 	flag.BoolVar(&deprecatedLogtostderr, "logtostderr", true, "DEPRECATED: This flag is no longer used. Logs are always written to stderr.")
+	flag.BoolVar(&includeSerialLabel, "include-serial-label", false, "Add serial label to certificate metrics (disambiguates multi-PEM bundles).")
 }
 
 func main() {
 	flag.Parse()
-	metrics.Init(prometheusExporterMetricsDisabled, nil)
+	metrics.Init(prometheusExporterMetricsDisabled, nil, includeSerialLabel)
 
 	// Check if --logtostderr was explicitly set
 	flag.Visit(func(f *flag.Flag) {

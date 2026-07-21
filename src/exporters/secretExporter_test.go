@@ -10,7 +10,7 @@ import (
 
 func TestSecretExporter_ExportMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -84,7 +84,7 @@ func TestSecretExporter_ExportMetrics(t *testing.T) {
 
 func TestSecretExporter_ExportMetrics_Bundle(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate CA and intermediate cert
 	caCert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -150,9 +150,72 @@ func TestSecretExporter_ExportMetrics_Bundle(t *testing.T) {
 	}
 }
 
+// TestSecretExporter_SameCNDifferentSerial is the OpenShift service-CA rotation
+// case: two PEMs in one key with the same subject/issuer must produce two series.
+func TestSecretExporter_SameCNDifferentSerial(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	metrics.Init(true, testRegistry, true)
+
+	// Two self-signed certs with identical CN (issuer == subject CN).
+	newer := testutil.GenerateCertificate(t, testutil.CertConfig{
+		CommonName: "service-ca", Organization: "org", Country: "US", Province: "CA", Days: 365, IsCA: true,
+	})
+	older := testutil.GenerateCertificate(t, testutil.CertConfig{
+		CommonName: "service-ca", Organization: "org", Country: "US", Province: "CA", Days: 30, IsCA: true,
+	})
+	bundle := testutil.CreateCertBundle(newer, older)
+
+	exporter := &SecretExporter{}
+	exporter.ResetMetrics()
+	if err := exporter.ExportMetrics(bundle, "service-ca.crt", "service-ca", "openshift-config", ""); err != nil {
+		t.Fatalf("ExportMetrics: %v", err)
+	}
+
+	mfs, err := testRegistry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+
+	type series struct {
+		serial string
+		value  float64
+	}
+	var found []series
+	for _, mf := range mfs {
+		if mf.GetName() != "cert_exporter_secret_expires_in_seconds" {
+			continue
+		}
+		for _, metric := range mf.GetMetric() {
+			labels := getLabelMap(metric)
+			if labels["secret_name"] != "service-ca" || labels["cn"] != "service-ca" {
+				continue
+			}
+			if labels["serial"] == "" {
+				t.Error("expected non-empty serial label")
+			}
+			found = append(found, series{serial: labels["serial"], value: metric.GetGauge().GetValue()})
+		}
+	}
+
+	if len(found) != 2 {
+		t.Fatalf("expected 2 series for same-CN bundle, got %d: %+v", len(found), found)
+	}
+	if found[0].serial == found[1].serial {
+		t.Fatalf("expected distinct serial labels, both %q", found[0].serial)
+	}
+	// Distinct expiries (30d vs 365d) should not have collapsed into one value.
+	delta := found[0].value - found[1].value
+	if delta < 0 {
+		delta = -delta
+	}
+	if delta < float64(100*24*60*60) {
+		t.Fatalf("expected ~335d gap between series values, got delta=%v series=%+v", delta, found)
+	}
+}
+
 func TestSecretExporter_ExportMetrics_PKCS12(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate certificates
 	caCert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -220,7 +283,7 @@ func TestSecretExporter_ExportMetrics_PKCS12(t *testing.T) {
 
 func TestSecretExporter_ExportMetrics_PKCS12WithPassword(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate certificates
 	caCert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -279,7 +342,7 @@ func TestSecretExporter_ExportMetrics_PKCS12WithPassword(t *testing.T) {
 
 func TestSecretExporter_ExportMetrics_InvalidCert(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	exporter := &SecretExporter{}
 	exporter.ResetMetrics()
@@ -293,7 +356,7 @@ func TestSecretExporter_ExportMetrics_InvalidCert(t *testing.T) {
 
 func TestSecretExporter_ResetMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate and export test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{

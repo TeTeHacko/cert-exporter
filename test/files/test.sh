@@ -57,12 +57,25 @@ assertMetricLine() {
     exit 1
 }
 
+# Drop trailing "}" and trailing type= so serial (and other) labels
+# can appear without breaking substring matches against exposition text.
+normalizeMetricNeedle() {
+    local n="$1"
+    n="${n%\}}"
+    n="${n%,type=\"cluster\"}"
+    n="${n%,type=\"user\"}"
+    printf '%s' "$n"
+}
+
 fetchMetricsTimestampValue() {
     local metrics
+    local needle
     metrics="$1"
+    needle=$(normalizeMetricNeedle "$metrics")
 
     curl --silent http://localhost:8080/metrics \
-    | grep -F "$metrics" \
+    | grep -F "$needle" \
+    | head -n1 \
     | awk '{ printf("%.0f",$2) }' || true
 }
 
@@ -95,11 +108,13 @@ validateMetrics() {
     local raw
     local val
     local valInDays
+    local needle
     metrics=$1
     expectedVal=$2
+    needle=$(normalizeMetricNeedle "$metrics")
 
     # grep returns 1 when there is no match; do not trip set -e
-    raw=$(curl --silent http://localhost:8080/metrics | grep "$metrics" || true)
+    raw=$(curl --silent http://localhost:8080/metrics | grep -F "$needle" | head -n1 || true)
 
     if [ "$raw" == "" ]; then
       echo "TEST FAILURE: $metrics" 

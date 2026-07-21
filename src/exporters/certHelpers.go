@@ -18,6 +18,10 @@ type certMetric struct {
 	notAfter, notBefore float64
 	issuer              string
 	cn                  string
+	// serial is the certificate serial number in lowercase hex. Used as a
+	// Prometheus label so multiple PEMs that share cn/issuer (e.g. rotated
+	// service-CA bundles) do not overwrite one another.
+	serial string
 }
 
 func secondsToExpiryFromCertAsFile(file string) ([]certMetric, error) {
@@ -74,6 +78,9 @@ func getCertificateMetrics(cert *x509.Certificate) certMetric {
 	metric.durationUntilExpiry = time.Until(cert.NotAfter).Seconds()
 	metric.issuer = cert.Issuer.CommonName
 	metric.cn = cert.Subject.CommonName
+	if cert.SerialNumber != nil {
+		metric.serial = cert.SerialNumber.Text(16)
+	}
 	return metric
 }
 

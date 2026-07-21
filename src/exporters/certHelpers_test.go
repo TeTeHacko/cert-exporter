@@ -186,6 +186,9 @@ func TestParseAsPEM(t *testing.T) {
 					if metric.notAfter == 0 {
 						t.Errorf("metric[%d] notAfter should not be zero", i)
 					}
+					if metric.serial == "" {
+						t.Errorf("metric[%d] serial should not be empty", i)
+					}
 				}
 			}
 		})

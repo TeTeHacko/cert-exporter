@@ -1,11 +1,31 @@
 package metrics
 
-import "github.com/prometheus/client_golang/prometheus"
-import versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+import (
+	"github.com/prometheus/client_golang/prometheus"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
+)
 
 const (
 	namespace = "cert_exporter"
 )
+
+// serialLabelEnabled is set by Init. When true, certificate metric families
+// include a serial label so multi-PEM bundles with the same cn/issuer
+// do not collapse into one Prometheus series.
+var serialLabelEnabled bool
+
+// SerialLabelEnabled reports whether certificate metrics include serial.
+func SerialLabelEnabled() bool {
+	return serialLabelEnabled
+}
+
+// AppendSerial appends serial to label values when the serial label is enabled.
+func AppendSerial(labelValues []string, serial string) []string {
+	if serialLabelEnabled {
+		return append(labelValues, serial)
+	}
+	return labelValues
+}
 
 var (
 	// ErrorTotal is a prometheus counter that indicates the total number of unexpected errors encountered by the application
@@ -28,201 +48,207 @@ var (
 		},
 	)
 
-	// CertExpirySeconds is a prometheus gauge that indicates the number of seconds until certificates on disk expires.
+	// Certificate metric vectors are constructed in Init so the label set can
+	// optionally include serial without a forced breaking change.
+	CertExpirySeconds             *prometheus.GaugeVec
+	CertNotAfterTimestamp         *prometheus.GaugeVec
+	CertNotBeforeTimestamp        *prometheus.GaugeVec
+	KubeConfigExpirySeconds       *prometheus.GaugeVec
+	KubeConfigNotAfterTimestamp   *prometheus.GaugeVec
+	KubeConfigNotBeforeTimestamp  *prometheus.GaugeVec
+	SecretExpirySeconds           *prometheus.GaugeVec
+	SecretNotAfterTimestamp       *prometheus.GaugeVec
+	SecretNotBeforeTimestamp      *prometheus.GaugeVec
+	CertRequestExpirySeconds      *prometheus.GaugeVec
+	CertRequestNotAfterTimestamp  *prometheus.GaugeVec
+	CertRequestNotBeforeTimestamp *prometheus.GaugeVec
+	AwsCertExpirySeconds          *prometheus.GaugeVec
+	ConfigMapExpirySeconds        *prometheus.GaugeVec
+	ConfigMapNotAfterTimestamp    *prometheus.GaugeVec
+	ConfigMapNotBeforeTimestamp   *prometheus.GaugeVec
+	WebhookExpirySeconds          *prometheus.GaugeVec
+	WebhookNotAfterTimestamp      *prometheus.GaugeVec
+	WebhookNotBeforeTimestamp     *prometheus.GaugeVec
+
+	// BuildInfo is a prometheus gauge that shows build information about the cert-exporter
+	BuildInfo = versioncollector.NewCollector("cert_exporter")
+)
+
+func withSerial(labels []string) []string {
+	if serialLabelEnabled {
+		out := make([]string, len(labels)+1)
+		copy(out, labels)
+		out[len(labels)] = "serial"
+		return out
+	}
+	return labels
+}
+
+// Init registers metrics. includeSerialLabel controls whether certificate
+// gauges expose a serial label (off by default for Prometheus series
+// compatibility; enable for multi-cert keys that share cn/issuer).
+func Init(prometheusExporterMetricsDisabled bool, registry *prometheus.Registry, includeSerialLabel bool) {
+	serialLabelEnabled = includeSerialLabel
+
 	CertExpirySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "cert_expires_in_seconds",
 			Help:      "Number of seconds til the cert expires.",
 		},
-		[]string{"filename", "issuer", "cn", "nodename"},
+		withSerial([]string{"filename", "issuer", "cn", "nodename"}),
 	)
-
-	// CertNotAfterTimestamp is a prometheus gauge that indicates the NotAfter timestamp.
 	CertNotAfterTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "cert_not_after_timestamp",
 			Help:      "Timestamp of when the certificate expires.",
 		},
-		[]string{"filename", "issuer", "cn", "nodename"},
+		withSerial([]string{"filename", "issuer", "cn", "nodename"}),
 	)
-
-	// CertNotBeforeTimestamp is a prometheus gauge that indicates the NotBefore timestamp.
 	CertNotBeforeTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "cert_not_before_timestamp",
 			Help:      "Timestamp of when the certificate becomes valid.",
 		},
-		[]string{"filename", "issuer", "cn", "nodename"},
+		withSerial([]string{"filename", "issuer", "cn", "nodename"}),
 	)
 
-	// KubeConfigExpirySeconds is a prometheus gauge that indicates the number of seconds until a kubeconfig certificate expires.
 	KubeConfigExpirySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "kubeconfig_expires_in_seconds",
 			Help:      "Number of seconds til the cert in the kubeconfig expires.",
 		},
-		[]string{"filename", "type", "cn", "issuer", "name", "nodename"},
+		withSerial([]string{"filename", "type", "cn", "issuer", "name", "nodename"}),
 	)
-
-	// KubeConfigNotAfterTimestamp is a prometheus gauge that indicates the NotAfter timestamp.
 	KubeConfigNotAfterTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "kubeconfig_not_after_timestamp",
 			Help:      "Expiration timestamp for cert in the kubeconfig.",
 		},
-		[]string{"filename", "type", "cn", "issuer", "name", "nodename"},
+		withSerial([]string{"filename", "type", "cn", "issuer", "name", "nodename"}),
 	)
-
-	// KubeConfigNotBeforeTimestamp is a prometheus gauge that indicates the NotBefore timestamp.
 	KubeConfigNotBeforeTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "kubeconfig_not_before_timestamp",
 			Help:      "Activation timestamp for cert in the kubeconfig.",
 		},
-		[]string{"filename", "type", "cn", "issuer", "name", "nodename"},
+		withSerial([]string{"filename", "type", "cn", "issuer", "name", "nodename"}),
 	)
 
-	// SecretExpirySeconds is a prometheus gauge that indicates the number of seconds until a kubernetes secret certificate expires
 	SecretExpirySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "secret_expires_in_seconds",
 			Help:      "Number of seconds til the cert in the secret expires.",
 		},
-		[]string{"key_name", "issuer", "cn", "secret_name", "secret_namespace"},
+		withSerial([]string{"key_name", "issuer", "cn", "secret_name", "secret_namespace"}),
 	)
-
-	// SecretNotAfterTimestamp is a prometheus gauge that indicates the NotAfter timestamp.
 	SecretNotAfterTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "secret_not_after_timestamp",
 			Help:      "Expiration timestamp for cert in the secret.",
 		},
-		[]string{"key_name", "issuer", "cn", "secret_name", "secret_namespace"},
+		withSerial([]string{"key_name", "issuer", "cn", "secret_name", "secret_namespace"}),
 	)
-
-	// SecretNotBeforeTimestamp is a prometheus gauge that indicates the NotBefore timestamp.
 	SecretNotBeforeTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "secret_not_before_timestamp",
 			Help:      "Activation timestamp for cert in the secret.",
 		},
-		[]string{"key_name", "issuer", "cn", "secret_name", "secret_namespace"},
+		withSerial([]string{"key_name", "issuer", "cn", "secret_name", "secret_namespace"}),
 	)
 
-	// CertRequestExpirySeconds is a prometheus gauge that indicates the number of seconds until a certificate in a cert-manager certificate request  expires
 	CertRequestExpirySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "certrequest_expires_in_seconds",
 			Help:      "Number of seconds til the cert in the certrequest expires.",
 		},
-		[]string{"issuer", "cn", "cert_request", "certrequest_namespace"},
+		withSerial([]string{"issuer", "cn", "cert_request", "certrequest_namespace"}),
 	)
-
-	// CertRequestNotAfterTimestamp is a prometheus gauge that indicates the NotAfter timestamp.
 	CertRequestNotAfterTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "certrequest_not_after_timestamp",
 			Help:      "Expiration timestamp for cert in the certrequest.",
 		},
-		[]string{"issuer", "cn", "cert_request", "certrequest_namespace"},
+		withSerial([]string{"issuer", "cn", "cert_request", "certrequest_namespace"}),
 	)
-
-	// CertRequestNotBeforeTimestamp is a prometheus gauge that indicates the NotBefore timestamp.
 	CertRequestNotBeforeTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "certrequest_not_before_timestamp",
 			Help:      "Activation timestamp for cert in the certrequest.",
 		},
-		[]string{"issuer", "cn", "cert_request", "certrequest_namespace"},
+		withSerial([]string{"issuer", "cn", "cert_request", "certrequest_namespace"}),
 	)
 
-	// AwsCertExpirySeconds is a prometheus gauge that indicates the number of seconds until certificates on AWS expires.
 	AwsCertExpirySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "cert_expires_in_seconds_aws",
 			Help:      "Number of seconds til the cert expires.",
 		},
-		[]string{"secretName", "key", "file", "issuer", "cn"},
+		withSerial([]string{"secretName", "key", "file", "issuer", "cn"}),
 	)
 
-	// ConfigMapExpirySeconds is a prometheus gauge that indicates the number of seconds until a kubernetes configmap certificate expires
 	ConfigMapExpirySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "configmap_expires_in_seconds",
 			Help:      "Number of seconds til the cert in the configmap expires.",
 		},
-		[]string{"key_name", "issuer", "cn", "configmap_name", "configmap_namespace"},
+		withSerial([]string{"key_name", "issuer", "cn", "configmap_name", "configmap_namespace"}),
 	)
-
-	// ConfigMapNotAfterTimestamp is a prometheus gauge that indicates the NotAfter timestamp.
 	ConfigMapNotAfterTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "configmap_not_after_timestamp",
 			Help:      "Expiration timestamp for cert in the configmap.",
 		},
-		[]string{"key_name", "issuer", "cn", "configmap_name", "configmap_namespace"},
+		withSerial([]string{"key_name", "issuer", "cn", "configmap_name", "configmap_namespace"}),
 	)
-
-	// ConfigMapNotBeforeTimestamp is a prometheus gauge that indicates the NotBefore timestamp.
 	ConfigMapNotBeforeTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "configmap_not_before_timestamp",
 			Help:      "Activation timestamp for cert in the configmap.",
 		},
-		[]string{"key_name", "issuer", "cn", "configmap_name", "configmap_namespace"},
+		withSerial([]string{"key_name", "issuer", "cn", "configmap_name", "configmap_namespace"}),
 	)
 
-	// WebhookExpirySeconds is a prometheus gauge that indicates the number of seconds until a kubernetes webhook certificate expires
 	WebhookExpirySeconds = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "webhook_expires_in_seconds",
 			Help:      "Number of seconds til the cert in the webhook expires.",
 		},
-		[]string{"type_name", "issuer", "cn", "webhook_name", "admission_review_version_name"},
+		withSerial([]string{"type_name", "issuer", "cn", "webhook_name", "admission_review_version_name"}),
 	)
-
-	// WebhookNotAfterTimestamp is a prometheus gauge that indicates the NotAfter timestamp.
 	WebhookNotAfterTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "webhook_not_after_timestamp",
 			Help:      "Expiration timestamp for cert in the webhook.",
 		},
-		[]string{"type_name", "issuer", "cn", "webhook_name", "admission_review_version_name"},
+		withSerial([]string{"type_name", "issuer", "cn", "webhook_name", "admission_review_version_name"}),
 	)
-
-	// WebhookNotBeforeTimestamp is a prometheus gauge that indicates the NotBefore timestamp.
 	WebhookNotBeforeTimestamp = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "webhook_not_before_timestamp",
 			Help:      "Activation timestamp for cert in the webhook.",
 		},
-		[]string{"type_name", "issuer", "cn", "webhook_name", "admission_review_version_name"},
+		withSerial([]string{"type_name", "issuer", "cn", "webhook_name", "admission_review_version_name"}),
 	)
 
-	// BuildInfo is a prometheus gauge that shows build information about the cert-exporter 
-	BuildInfo = versioncollector.NewCollector("cert_exporter")
-)
-
-func Init(prometheusExporterMetricsDisabled bool, registry *prometheus.Registry) {
 	var registerer prometheus.Registerer
 
 	if registry != nil {
