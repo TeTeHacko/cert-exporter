@@ -2,6 +2,7 @@ package exporters
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,10 +12,59 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
+// TestCertExporter_SameCNDifferentSerial ensures file-based multi-PEM bundles
+// with identical cn/issuer keep distinct series via serial.
+func TestCertExporter_SameCNDifferentSerial(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	metrics.Init(true, testRegistry, true)
+
+	tmpDir := t.TempDir()
+	certFile := filepath.Join(tmpDir, "service-ca.crt")
+
+	newer := testutil.GenerateCertificate(t, testutil.CertConfig{
+		CommonName: "service-ca", Organization: "org", Country: "US", Province: "CA", Days: 365, IsCA: true,
+	})
+	older := testutil.GenerateCertificate(t, testutil.CertConfig{
+		CommonName: "service-ca", Organization: "org", Country: "US", Province: "CA", Days: 30, IsCA: true,
+	})
+	testutil.WriteCertToFile(t, testutil.CreateCertBundle(newer, older), certFile)
+
+	exporter := &CertExporter{}
+	exporter.ResetMetrics()
+	if err := exporter.ExportMetrics(certFile, "node1"); err != nil {
+		t.Fatalf("ExportMetrics: %v", err)
+	}
+
+	mfs, err := testRegistry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+
+	serials := map[string]struct{}{}
+	for _, mf := range mfs {
+		if mf.GetName() != "cert_exporter_cert_expires_in_seconds" {
+			continue
+		}
+		for _, metric := range mf.GetMetric() {
+			labels := getLabelMap(metric)
+			if labels["filename"] != certFile || labels["cn"] != "service-ca" {
+				continue
+			}
+			if labels["serial"] == "" {
+				t.Error("expected serial label")
+			}
+			serials[labels["serial"]] = struct{}{}
+		}
+	}
+	if len(serials) != 2 {
+		t.Fatalf("expected 2 series, got %d: %v", len(serials), serials)
+	}
+}
+
 func TestCertExporter_ExportMetrics(t *testing.T) {
 	// Create a custom registry for this test to avoid collisions
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	tests := []struct {
 		name     string
@@ -153,7 +203,7 @@ func TestCertExporter_ExportMetrics(t *testing.T) {
 func TestCertExporter_MetricsValues(t *testing.T) {
 	// Create a custom registry for this test to avoid collisions
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	tmpDir := testutil.CreateTempCertDir(t)
 	certFile := tmpDir + "/test.crt"
@@ -227,7 +277,7 @@ func TestCertExporter_MetricsValues(t *testing.T) {
 func TestCertExporter_PKCS12(t *testing.T) {
 	// Create a custom registry for this test to avoid collisions
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	tmpDir := testutil.CreateTempCertDir(t)
 	certFile := tmpDir + "/test.p12"
@@ -290,7 +340,7 @@ func TestCertExporter_PKCS12(t *testing.T) {
 func TestCertExporter_ResetMetrics(t *testing.T) {
 	// Create a custom registry for this test to avoid collisions
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	tmpDir := testutil.CreateTempCertDir(t)
 	certFile := tmpDir + "/test.crt"

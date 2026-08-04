@@ -16,7 +16,8 @@ func (c *AwsExporter) ExportMetrics(file, secretName, key string) error {
 	}
 
 	for _, metric := range metricCollection {
-		metrics.AwsCertExpirySeconds.WithLabelValues(secretName, key, file, metric.issuer, metric.cn).Set(metric.durationUntilExpiry)
+		labels := metrics.AppendSerial([]string{secretName, key, file, metric.issuer, metric.cn}, metric.serial)
+		metrics.AwsCertExpirySeconds.WithLabelValues(labels...).Set(metric.durationUntilExpiry)
 	}
 
 	return nil

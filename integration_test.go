@@ -17,7 +17,7 @@ import (
 // TestEndToEnd tests the complete flow of cert-exporter with certificates on disk
 func TestEndToEnd_FileBasedCerts(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(false, testRegistry)
+	metrics.Init(false, testRegistry, false)
 
 	tmpDir := testutil.CreateTempCertDir(t)
 
@@ -141,7 +141,7 @@ func TestEndToEnd_FileBasedCerts(t *testing.T) {
 // TestEndToEnd_Kubeconfig tests kubeconfig parsing and metric export
 func TestEndToEnd_Kubeconfig(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(false, testRegistry)
+	metrics.Init(false, testRegistry, false)
 
 	tmpDir := testutil.CreateTempCertDir(t)
 	certDir := filepath.Join(tmpDir, "certs")
@@ -238,7 +238,7 @@ func TestEndToEnd_Kubeconfig(t *testing.T) {
 // TestEndToEnd_ErrorMetric tests that error metrics are properly incremented
 func TestEndToEnd_ErrorMetric(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(false, testRegistry)
+	metrics.Init(false, testRegistry, false)
 
 	tmpDir := testutil.CreateTempCertDir(t)
 

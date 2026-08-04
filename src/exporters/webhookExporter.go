@@ -16,9 +16,10 @@ func (c *WebhookExporter) ExportMetrics(bytes []byte, typeName, webhookName, adm
 	}
 
 	for _, metric := range metricCollection {
-		metrics.WebhookExpirySeconds.WithLabelValues(typeName, metric.issuer, metric.cn, webhookName, admissionReviewVersionName).Set(metric.durationUntilExpiry)
-		metrics.WebhookNotAfterTimestamp.WithLabelValues(typeName, metric.issuer, metric.cn, webhookName, admissionReviewVersionName).Set(metric.notAfter)
-		metrics.WebhookNotBeforeTimestamp.WithLabelValues(typeName, metric.issuer, metric.cn, webhookName, admissionReviewVersionName).Set(metric.notBefore)
+		labels := metrics.AppendSerial([]string{typeName, metric.issuer, metric.cn, webhookName, admissionReviewVersionName}, metric.serial)
+		metrics.WebhookExpirySeconds.WithLabelValues(labels...).Set(metric.durationUntilExpiry)
+		metrics.WebhookNotAfterTimestamp.WithLabelValues(labels...).Set(metric.notAfter)
+		metrics.WebhookNotBeforeTimestamp.WithLabelValues(labels...).Set(metric.notBefore)
 	}
 
 	return nil

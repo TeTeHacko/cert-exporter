@@ -1,9 +1,9 @@
 package metrics
 
 import (
-	"testing"
-	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
+	"testing"
 )
 
 func TestInit_WithDefaultRegistry(t *testing.T) {
@@ -11,7 +11,7 @@ func TestInit_WithDefaultRegistry(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
 
 	// Call Init with a custom registry
-	Init(false, testRegistry)
+	Init(false, testRegistry, false)
 
 	// Verify that metrics were registered by checking the gatherer
 	metricFamilies, err := testRegistry.Gather()
@@ -49,7 +49,7 @@ func TestInit_WithEmptyRegistry(t *testing.T) {
 
 	// Call Init with prometheusExporterMetricsDisabled=true and nil registry
 	// This should create an empty registry and set it as the default
-	Init(true, nil)
+	Init(true, nil, false)
 
 	// Verify that a new empty registry was created
 	// The default registerer should now be an empty registry
@@ -84,30 +84,33 @@ func TestMetricsNamespace(t *testing.T) {
 
 func TestMetricsDefinitions(t *testing.T) {
 	// Test that all metric variables are defined and not nil
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	metrics := map[string]interface{}{
-		"BuildInfo":                       BuildInfo,
-        "Discovered":                      Discovered,
-    	"ErrorTotal":                      ErrorTotal,
-		"CertExpirySeconds":               CertExpirySeconds,
-		"CertNotAfterTimestamp":           CertNotAfterTimestamp,
-		"CertNotBeforeTimestamp":          CertNotBeforeTimestamp,
-		"KubeConfigExpirySeconds":         KubeConfigExpirySeconds,
-		"KubeConfigNotAfterTimestamp":     KubeConfigNotAfterTimestamp,
-		"KubeConfigNotBeforeTimestamp":    KubeConfigNotBeforeTimestamp,
-		"SecretExpirySeconds":             SecretExpirySeconds,
-		"SecretNotAfterTimestamp":         SecretNotAfterTimestamp,
-		"SecretNotBeforeTimestamp":        SecretNotBeforeTimestamp,
-		"CertRequestExpirySeconds":        CertRequestExpirySeconds,
-		"CertRequestNotAfterTimestamp":    CertRequestNotAfterTimestamp,
-		"CertRequestNotBeforeTimestamp":   CertRequestNotBeforeTimestamp,
-		"AwsCertExpirySeconds":            AwsCertExpirySeconds,
-		"ConfigMapExpirySeconds":          ConfigMapExpirySeconds,
-		"ConfigMapNotAfterTimestamp":      ConfigMapNotAfterTimestamp,
-		"ConfigMapNotBeforeTimestamp":     ConfigMapNotBeforeTimestamp,
-		"WebhookExpirySeconds":            WebhookExpirySeconds,
-		"WebhookNotAfterTimestamp":        WebhookNotAfterTimestamp,
-		"WebhookNotBeforeTimestamp":       WebhookNotBeforeTimestamp,
-  }
+		"BuildInfo":                     BuildInfo,
+		"Discovered":                    Discovered,
+		"ErrorTotal":                    ErrorTotal,
+		"CertExpirySeconds":             CertExpirySeconds,
+		"CertNotAfterTimestamp":         CertNotAfterTimestamp,
+		"CertNotBeforeTimestamp":        CertNotBeforeTimestamp,
+		"KubeConfigExpirySeconds":       KubeConfigExpirySeconds,
+		"KubeConfigNotAfterTimestamp":   KubeConfigNotAfterTimestamp,
+		"KubeConfigNotBeforeTimestamp":  KubeConfigNotBeforeTimestamp,
+		"SecretExpirySeconds":           SecretExpirySeconds,
+		"SecretNotAfterTimestamp":       SecretNotAfterTimestamp,
+		"SecretNotBeforeTimestamp":      SecretNotBeforeTimestamp,
+		"CertRequestExpirySeconds":      CertRequestExpirySeconds,
+		"CertRequestNotAfterTimestamp":  CertRequestNotAfterTimestamp,
+		"CertRequestNotBeforeTimestamp": CertRequestNotBeforeTimestamp,
+		"AwsCertExpirySeconds":          AwsCertExpirySeconds,
+		"ConfigMapExpirySeconds":        ConfigMapExpirySeconds,
+		"ConfigMapNotAfterTimestamp":    ConfigMapNotAfterTimestamp,
+		"ConfigMapNotBeforeTimestamp":   ConfigMapNotBeforeTimestamp,
+		"WebhookExpirySeconds":          WebhookExpirySeconds,
+		"WebhookNotAfterTimestamp":      WebhookNotAfterTimestamp,
+		"WebhookNotBeforeTimestamp":     WebhookNotBeforeTimestamp,
+	}
 
 	for name, metric := range metrics {
 		if metric == nil {
@@ -118,6 +121,9 @@ func TestMetricsDefinitions(t *testing.T) {
 
 func TestCertExpirySecondsLabels(t *testing.T) {
 	// Test that CertExpirySeconds has the correct labels
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"filename": "test.crt",
 		"issuer":   "Test CA",
@@ -136,6 +142,9 @@ func TestCertExpirySecondsLabels(t *testing.T) {
 }
 
 func TestCertNotAfterTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"filename": "test.crt",
 		"issuer":   "Test CA",
@@ -151,6 +160,9 @@ func TestCertNotAfterTimestampLabels(t *testing.T) {
 }
 
 func TestCertNotBeforeTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"filename": "test.crt",
 		"issuer":   "Test CA",
@@ -166,6 +178,9 @@ func TestCertNotBeforeTimestampLabels(t *testing.T) {
 }
 
 func TestKubeConfigExpirySecondsLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"filename": "kubeconfig.yaml",
 		"type":     "client",
@@ -183,6 +198,9 @@ func TestKubeConfigExpirySecondsLabels(t *testing.T) {
 }
 
 func TestKubeConfigNotAfterTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"filename": "kubeconfig.yaml",
 		"type":     "client",
@@ -200,6 +218,9 @@ func TestKubeConfigNotAfterTimestampLabels(t *testing.T) {
 }
 
 func TestKubeConfigNotBeforeTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"filename": "kubeconfig.yaml",
 		"type":     "client",
@@ -217,6 +238,9 @@ func TestKubeConfigNotBeforeTimestampLabels(t *testing.T) {
 }
 
 func TestSecretExpirySecondsLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"key_name":         "tls.crt",
 		"issuer":           "Test CA",
@@ -233,6 +257,9 @@ func TestSecretExpirySecondsLabels(t *testing.T) {
 }
 
 func TestSecretNotAfterTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"key_name":         "tls.crt",
 		"issuer":           "Test CA",
@@ -249,6 +276,9 @@ func TestSecretNotAfterTimestampLabels(t *testing.T) {
 }
 
 func TestSecretNotBeforeTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"key_name":         "tls.crt",
 		"issuer":           "Test CA",
@@ -265,6 +295,9 @@ func TestSecretNotBeforeTimestampLabels(t *testing.T) {
 }
 
 func TestCertRequestExpirySecondsLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"issuer":                "letsencrypt",
 		"cn":                    "test.example.com",
@@ -280,6 +313,9 @@ func TestCertRequestExpirySecondsLabels(t *testing.T) {
 }
 
 func TestCertRequestNotAfterTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"issuer":                "letsencrypt",
 		"cn":                    "test.example.com",
@@ -295,6 +331,9 @@ func TestCertRequestNotAfterTimestampLabels(t *testing.T) {
 }
 
 func TestCertRequestNotBeforeTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"issuer":                "letsencrypt",
 		"cn":                    "test.example.com",
@@ -310,6 +349,9 @@ func TestCertRequestNotBeforeTimestampLabels(t *testing.T) {
 }
 
 func TestAwsCertExpirySecondsLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"secretName": "aws-secret",
 		"key":        "certificate.pem",
@@ -326,6 +368,9 @@ func TestAwsCertExpirySecondsLabels(t *testing.T) {
 }
 
 func TestConfigMapExpirySecondsLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"key_name":            "ca.crt",
 		"issuer":              "Test CA",
@@ -342,6 +387,9 @@ func TestConfigMapExpirySecondsLabels(t *testing.T) {
 }
 
 func TestConfigMapNotAfterTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"key_name":            "ca.crt",
 		"issuer":              "Test CA",
@@ -358,6 +406,9 @@ func TestConfigMapNotAfterTimestampLabels(t *testing.T) {
 }
 
 func TestConfigMapNotBeforeTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"key_name":            "ca.crt",
 		"issuer":              "Test CA",
@@ -374,6 +425,9 @@ func TestConfigMapNotBeforeTimestampLabels(t *testing.T) {
 }
 
 func TestWebhookExpirySecondsLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"type_name":                     "validating",
 		"issuer":                        "webhook-ca",
@@ -390,6 +444,9 @@ func TestWebhookExpirySecondsLabels(t *testing.T) {
 }
 
 func TestWebhookNotAfterTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"type_name":                     "validating",
 		"issuer":                        "webhook-ca",
@@ -406,6 +463,9 @@ func TestWebhookNotAfterTimestampLabels(t *testing.T) {
 }
 
 func TestWebhookNotBeforeTimestampLabels(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	Init(true, testRegistry, false)
+
 	labels := prometheus.Labels{
 		"type_name":                     "validating",
 		"issuer":                        "webhook-ca",
@@ -423,7 +483,7 @@ func TestWebhookNotBeforeTimestampLabels(t *testing.T) {
 
 func TestBuildInfo(t *testing.T) {
 	collector := BuildInfo
-	
+
 	// Collect build_info metric from the channel
 	ch := make(chan prometheus.Metric, 1)
 	collector.Collect(ch)
@@ -441,7 +501,7 @@ func TestBuildInfo(t *testing.T) {
 		actualLabels[lp.GetName()] = lp.GetValue()
 	}
 	t.Log("------------------------------------")
-	
+
 	// Define expected labels (common build_info labels)
 	expectedLabels := []string{
 		"version",
@@ -461,7 +521,6 @@ func TestBuildInfo(t *testing.T) {
 	}
 }
 
-
 func TestErrorTotalCounter(t *testing.T) {
 	// Test that ErrorTotal counter can be incremented
 	// Note: We can't easily verify the actual value due to global state,
@@ -478,4 +537,26 @@ func TestDiscoveredGauge(t *testing.T) {
 	Discovered.Dec()
 	Discovered.Add(5)
 	Discovered.Sub(3)
+}
+
+func TestSerialLabelFlag(t *testing.T) {
+	regOn := prometheus.NewRegistry()
+	Init(true, regOn, true)
+	if !SerialLabelEnabled() {
+		t.Fatal("expected serial number label enabled")
+	}
+	on := CertExpirySeconds.With(prometheus.Labels{
+		"filename": "t.crt", "issuer": "ca", "cn": "cn", "nodename": "n", "serial": "ab",
+	})
+	on.Set(1)
+
+	regOff := prometheus.NewRegistry()
+	Init(true, regOff, false)
+	if SerialLabelEnabled() {
+		t.Fatal("expected serial number label disabled")
+	}
+	off := CertExpirySeconds.With(prometheus.Labels{
+		"filename": "t.crt", "issuer": "ca", "cn": "cn", "nodename": "n",
+	})
+	off.Set(1)
 }

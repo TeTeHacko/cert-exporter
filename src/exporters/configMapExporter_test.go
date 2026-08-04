@@ -10,7 +10,7 @@ import (
 
 func TestConfigMapExporter_ExportMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -82,9 +82,52 @@ func TestConfigMapExporter_ExportMetrics(t *testing.T) {
 	}
 }
 
+// TestConfigMapExporter_SameCNDifferentSerial covers rotated CA bundles in a
+// configmap key (e.g. OpenShift service-ca.crt) where cn/issuer collide.
+func TestConfigMapExporter_SameCNDifferentSerial(t *testing.T) {
+	testRegistry := prometheus.NewRegistry()
+	metrics.Init(true, testRegistry, true)
+
+	newer := testutil.GenerateCertificate(t, testutil.CertConfig{
+		CommonName: "service-ca", Organization: "org", Country: "US", Province: "CA", Days: 365, IsCA: true,
+	})
+	older := testutil.GenerateCertificate(t, testutil.CertConfig{
+		CommonName: "service-ca", Organization: "org", Country: "US", Province: "CA", Days: 30, IsCA: true,
+	})
+	bundle := testutil.CreateCertBundle(newer, older)
+
+	exporter := &ConfigMapExporter{}
+	exporter.ResetMetrics()
+	if err := exporter.ExportMetrics(bundle, "service-ca.crt", "service-ca", "openshift-config"); err != nil {
+		t.Fatalf("ExportMetrics: %v", err)
+	}
+
+	mfs, err := testRegistry.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+
+	serials := map[string]float64{}
+	for _, mf := range mfs {
+		if mf.GetName() != "cert_exporter_configmap_expires_in_seconds" {
+			continue
+		}
+		for _, metric := range mf.GetMetric() {
+			labels := getLabelMap(metric)
+			if labels["configmap_name"] != "service-ca" || labels["cn"] != "service-ca" {
+				continue
+			}
+			serials[labels["serial"]] = metric.GetGauge().GetValue()
+		}
+	}
+	if len(serials) != 2 {
+		t.Fatalf("expected 2 series for same-CN configmap bundle, got %d: %v", len(serials), serials)
+	}
+}
+
 func TestConfigMapExporter_ExportMetrics_Bundle(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate CA and intermediate cert
 	caCert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -152,7 +195,7 @@ func TestConfigMapExporter_ExportMetrics_Bundle(t *testing.T) {
 
 func TestConfigMapExporter_ExportMetrics_MultipleKeys(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate multiple certificates
 	cert1 := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -212,7 +255,7 @@ func TestConfigMapExporter_ExportMetrics_MultipleKeys(t *testing.T) {
 
 func TestConfigMapExporter_ExportMetrics_InvalidCert(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	exporter := &ConfigMapExporter{}
 	exporter.ResetMetrics()
@@ -226,7 +269,7 @@ func TestConfigMapExporter_ExportMetrics_InvalidCert(t *testing.T) {
 
 func TestConfigMapExporter_ResetMetrics(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate and export test certificate
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{
@@ -280,7 +323,7 @@ func TestConfigMapExporter_ResetMetrics(t *testing.T) {
 
 func TestConfigMapExporter_LabelValues(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Generate test certificate with specific fields
 	cert := testutil.GenerateCertificate(t, testutil.CertConfig{

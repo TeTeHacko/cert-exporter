@@ -16,9 +16,10 @@ func (c *ConfigMapExporter) ExportMetrics(bytes []byte, keyName, configMapName, 
 	}
 
 	for _, metric := range metricCollection {
-		metrics.ConfigMapExpirySeconds.WithLabelValues(keyName, metric.issuer, metric.cn, configMapName, configMapNamespace).Set(metric.durationUntilExpiry)
-		metrics.ConfigMapNotAfterTimestamp.WithLabelValues(keyName, metric.issuer, metric.cn, configMapName, configMapNamespace).Set(metric.notAfter)
-		metrics.ConfigMapNotBeforeTimestamp.WithLabelValues(keyName, metric.issuer, metric.cn, configMapName, configMapNamespace).Set(metric.notBefore)
+		labels := metrics.AppendSerial([]string{keyName, metric.issuer, metric.cn, configMapName, configMapNamespace}, metric.serial)
+		metrics.ConfigMapExpirySeconds.WithLabelValues(labels...).Set(metric.durationUntilExpiry)
+		metrics.ConfigMapNotAfterTimestamp.WithLabelValues(labels...).Set(metric.notAfter)
+		metrics.ConfigMapNotBeforeTimestamp.WithLabelValues(labels...).Set(metric.notBefore)
 	}
 
 	return nil

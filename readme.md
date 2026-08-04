@@ -60,11 +60,11 @@ cert_exporter_error_total 0
 cert_exporter_discovered 0
 # HELP cert_exporter_cert_expires_in_seconds Number of seconds til the cert expires.
 # TYPE cert_exporter_cert_expires_in_seconds gauge
-cert_exporter_cert_expires_in_seconds{filename="certsSibling/client.crt",issuer="root",nodename="master0"} 8.639964560021e+06
+cert_exporter_cert_expires_in_seconds{cn="client",filename="certsSibling/client.crt",issuer="root",nodename="master0"} 8.639964560021e+06
 # HELP cert_exporter_kubeconfig_expires_in_seconds Number of seconds til the cert in kubeconfig expires.
 # TYPE cert_exporter_kubeconfig_expires_in_seconds gauge
-cert_exporter_kubeconfig_expires_in_seconds{filename="kubeConfigSibling/kubeconfig",name="cluster1",nodename="master0",type="cluster"} 8.639964559682e+06
-cert_exporter_kubeconfig_expires_in_seconds{filename="kubeConfigSibling/kubeconfig",name="user1",nodename="master0",type="user"} 8.639964559249e+06
+cert_exporter_kubeconfig_expires_in_seconds{cn="root",filename="kubeConfigSibling/kubeconfig",issuer="root",name="cluster1",nodename="master0",type="cluster"} 8.639964559682e+06
+cert_exporter_kubeconfig_expires_in_seconds{cn="client",filename="kubeConfigSibling/kubeconfig",issuer="root",name="user1",nodename="master0",type="user"} 8.639964559249e+06
 # HELP cert_exporter_secret_expires_in_seconds Number of seconds til the cert in the secret expires.
 # TYPE cert_exporter_secret_expires_in_seconds gauge
 cert_exporter_secret_expires_in_seconds{cn="example.com",issuer="example.com",key_name="ca.crt",secret_name="selfsigned-cert-tls",secret_namespace="cert-manager-test"} 8.6396867095666e+06
@@ -86,23 +86,35 @@ The number of files matched by include/exclude globs across all file-based check
 **cert_exporter_error_total**  
 The total number of unexpected errors encountered by cert-exporter.  A good metric to watch to feel comfortable certs are being exported properly.
 
+**`--include-serial-label` (optional)**  
+Default **false** (no series identity change). When **true**, every certificate metric gains a `serial` label (lowercase hex). Enable this when a single file/secret/configmap key holds multiple PEMs that share the same `cn`/`issuer`, otherwise Prometheus collapses them into one series. Enabling this will cause churn, so check your dashboards and alerts beforehand.
+
+Example with the flag on:
+
+```
+cert_exporter_secret_expires_in_seconds{cn="service-ca",issuer="service-ca",key_name="service-ca.crt",secret_name="…",secret_namespace="…",serial="a1b2c3"} …
+cert_exporter_secret_expires_in_seconds{cn="service-ca",issuer="service-ca",key_name="service-ca.crt",secret_name="…",secret_namespace="…",serial="d4e5f6"} …
+```
+
 **cert_exporter_cert_expires_in_seconds**  
-The number of seconds until a certificate stored in the PEM format is expired.  The `filename`, `issuer`, `cn`, and `nodename` label indicates the exported cert.
+The number of seconds until a certificate stored in the PEM format is expired.  The `filename`, `issuer`, `cn`, and `nodename` labels indicate the exported cert (`serial` when enabled).
 
 **cert_exporter_kubeconfig_expires_in_seconds**  
-The number of seconds until a certificate stored in a kubeconfig expires.  The `filename`, `type`, `name`, and `nodename` labels indicate the kubeconfig, cluster or user node and name of the node.  See details [here](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
+The number of seconds until a certificate stored in a kubeconfig expires.  The `filename`, `type`, `name`, and `nodename` labels indicate the kubeconfig, cluster or user node and name of the node (`serial` when enabled).  See details [here](https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/).
 
 **cert_exporter_secret_expires_in_seconds**
-The number of seconds until a certificate stored in a kubernetes secret expires.  The `key_name`, `issuer`, `cn`, `secret_name`, and `secret_namespace` labels indicate the secret key, name and namespace. 
+The number of seconds until a certificate stored in a kubernetes secret expires.  The `key_name`, `issuer`, `cn`, `secret_name`, and `secret_namespace` labels indicate the secret key, name and namespace (`serial` when enabled).
 
 **cert_exporter_certrequest_expires_in_seconds**
-The number of seconds until a certificate stored in a cert-manager CertificateRequest expires.  The `cert_request`, `issuer`, `cn`, and `certrequest_namespace` labels indicate the CertificateRequest, comon name and namespace. 
+The number of seconds until a certificate stored in a cert-manager CertificateRequest expires.  The `cert_request`, `issuer`, `cn`, and `certrequest_namespace` labels indicate the CertificateRequest, common name and namespace (`serial` when enabled).
 
 **cert_exporter_certrequest_not_after_timestamp**
-The timestamp when a certificate stored in a cert-manager CertificateRequest expires.   The `cert_request`, `issuer`, `cn`, and `certrequest_namespace` labels indicate the CertificateRequest, comon name and namespace. 
+The timestamp when a certificate stored in a cert-manager CertificateRequest expires.   The `cert_request`, `issuer`, `cn`, and `certrequest_namespace` labels indicate the CertificateRequest, common name and namespace (`serial` when enabled).
 
 **cert_exporter_certrequest_not_before_timestamp**
-The timestamp when a certificate stored in a cert-manager CertificateRequest becomes valid.   The `cert_request`, `issuer`, `cn`, and `certrequest_namespace` labels indicate the CertificateRequest, comon name and namespace. 
+The timestamp when a certificate stored in a cert-manager CertificateRequest becomes valid.   The `cert_request`, `issuer`, `cn`, and `certrequest_namespace` labels indicate the CertificateRequest, common name and namespace (`serial` when enabled).
+
+
 
 ### Other Docs
 

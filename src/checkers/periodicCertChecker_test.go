@@ -116,7 +116,7 @@ func TestPeriodicCertChecker_GetMatches(t *testing.T) {
 
 func TestPeriodicCertChecker_StartChecking(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	tmpDir := testutil.CreateTempCertDir(t)
 
@@ -163,7 +163,7 @@ func TestPeriodicCertChecker_StartChecking(t *testing.T) {
 
 func TestPeriodicCertChecker_DiscoveredAccumulation(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 	// Discovered is a process-global gauge; zero it so this test is isolated.
 	metrics.Discovered.Set(0)
 
@@ -233,7 +233,7 @@ func gatherDiscovered(t *testing.T, reg *prometheus.Registry) float64 {
 
 func TestPeriodicCertChecker_ErrorHandling(t *testing.T) {
 	testRegistry := prometheus.NewRegistry()
-	metrics.Init(true, testRegistry)
+	metrics.Init(true, testRegistry, false)
 
 	// Capture error_total before this test; the counter is process-global.
 	var errorCountBefore float64
