@@ -63,12 +63,16 @@ var (
 	certRequestsNamespace             string
 	certRequestsListOfNamespaces      string
 	deprecatedLogtostderr             bool
-	includeSerialLabel          bool
+	excludeCertCNGlobs                args.GlobArgs
+	excludeCertIssuerGlobs            args.GlobArgs
+	includeSerialLabel                bool
 )
 
 func init() {
 	flag.Var(&includeCertGlobs, "include-cert-glob", "File globs to include when looking for certs.")
 	flag.Var(&excludeCertGlobs, "exclude-cert-glob", "File globs to exclude when looking for certs.")
+	flag.Var(&excludeCertCNGlobs, "exclude-cert-cn-glob", "Glob patterns for certificate Common Names (CNs) to exclude from metrics. Can be specified multiple times.")
+	flag.Var(&excludeCertIssuerGlobs, "exclude-cert-issuer-glob", "Glob patterns for certificate issuers to exclude from metrics. Can be specified multiple times.")
 	flag.Var(&includeKubeConfigGlobs, "include-kubeconfig-glob", "File globs to include when looking for kubeconfigs.")
 	flag.Var(&excludeKubeConfigGlobs, "exclude-kubeconfig-glob", "File globs to exclude when looking for kubeconfigs.")
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
@@ -128,12 +132,12 @@ func main() {
 	slog.Info("pprof profiling endpoints available at /debug/pprof/")
 
 	if len(includeCertGlobs) > 0 {
-		certChecker := checkers.NewCertChecker(pollingPeriod, includeCertGlobs, excludeCertGlobs, os.Getenv("NODE_NAME"), &exporters.CertExporter{})
+		certChecker := checkers.NewCertChecker(pollingPeriod, includeCertGlobs, excludeCertGlobs, os.Getenv("NODE_NAME"), &exporters.CertExporter{ExcludeCNGlobs: excludeCertCNGlobs, ExcludeIssuerGlobs: excludeCertIssuerGlobs})
 		go certChecker.StartChecking()
 	}
 
 	if len(includeKubeConfigGlobs) > 0 {
-		configChecker := checkers.NewCertChecker(pollingPeriod, includeKubeConfigGlobs, excludeKubeConfigGlobs, os.Getenv("NODE_NAME"), &exporters.KubeConfigExporter{})
+		configChecker := checkers.NewCertChecker(pollingPeriod, includeKubeConfigGlobs, excludeKubeConfigGlobs, os.Getenv("NODE_NAME"), &exporters.KubeConfigExporter{ExcludeCNGlobs: excludeCertCNGlobs, ExcludeIssuerGlobs: excludeCertIssuerGlobs})
 		go configChecker.StartChecking()
 	}
 
@@ -143,21 +147,21 @@ func main() {
 		}
 		secretsNamespaces := getSanitizedNamespaceList(secretsListOfNamespaces, secretsNamespace)
 
-		configChecker := checkers.NewSecretChecker(pollingPeriod, secretsLabelSelector, includeSecretsDataGlobs, excludeSecretsDataGlobs, secretsAnnotationSelector, secretsNamespaces, secretsNamespaceLabelSelector, kubeconfigPath, &exporters.SecretExporter{}, includeSecretsTypes)
+		configChecker := checkers.NewSecretChecker(pollingPeriod, secretsLabelSelector, includeSecretsDataGlobs, excludeSecretsDataGlobs, secretsAnnotationSelector, secretsNamespaces, secretsNamespaceLabelSelector, kubeconfigPath, &exporters.SecretExporter{ExcludeCNGlobs: excludeCertCNGlobs, ExcludeIssuerGlobs: excludeCertIssuerGlobs}, includeSecretsTypes)
 		go configChecker.StartChecking()
 	}
 
 	if len(certRequestsLabelSelector) > 0 || len(certRequestsAnnotationSelector) > 0 || certRequestsEnabled {
 		certRequestNamespaces := getSanitizedNamespaceList(certRequestsListOfNamespaces, certRequestsNamespace)
 
-		configChecker := checkers.NewCertRequestChecker(pollingPeriod, certRequestsLabelSelector, certRequestsAnnotationSelector, certRequestNamespaces, kubeconfigPath, &exporters.CertRequestExporter{})
+		configChecker := checkers.NewCertRequestChecker(pollingPeriod, certRequestsLabelSelector, certRequestsAnnotationSelector, certRequestNamespaces, kubeconfigPath, &exporters.CertRequestExporter{ExcludeCNGlobs: excludeCertCNGlobs, ExcludeIssuerGlobs: excludeCertIssuerGlobs})
 		go configChecker.StartChecking()
 
 	}
 
 	if len(awsAccount) > 0 && len(awsRegion) > 0 && len(awsSecrets) > 0 {
 		slog.Info("Starting check for AWS Secrets Manager", "account", awsAccount, "region", awsRegion, "secrets", awsSecrets)
-		awsChecker := checkers.NewAwsChecker(awsAccount, awsRegion, awsKeySubString, awsSecrets, pollingPeriod, &exporters.AwsExporter{})
+		awsChecker := checkers.NewAwsChecker(awsAccount, awsRegion, awsKeySubString, awsSecrets, pollingPeriod, &exporters.AwsExporter{ExcludeCNGlobs: excludeCertCNGlobs, ExcludeIssuerGlobs: excludeCertIssuerGlobs})
 		go awsChecker.StartChecking()
 	}
 
@@ -167,12 +171,12 @@ func main() {
 		}
 		configMapsNamespaces := getSanitizedNamespaceList(configMapsListOfNamespaces, configMapsNamespace)
 
-		configChecker := checkers.NewConfigMapChecker(pollingPeriod, configMapsLabelSelector, includeConfigMapsDataGlobs, excludeConfigMapsDataGlobs, configMapsAnnotationSelector, configMapsNamespaces, configMapsNamespaceLabelSelector, kubeconfigPath, &exporters.ConfigMapExporter{})
+		configChecker := checkers.NewConfigMapChecker(pollingPeriod, configMapsLabelSelector, includeConfigMapsDataGlobs, excludeConfigMapsDataGlobs, configMapsAnnotationSelector, configMapsNamespaces, configMapsNamespaceLabelSelector, kubeconfigPath, &exporters.ConfigMapExporter{ExcludeCNGlobs: excludeCertCNGlobs, ExcludeIssuerGlobs: excludeCertIssuerGlobs})
 		go configChecker.StartChecking()
 	}
 
 	if webhookCheckEnabled {
-		configChecker := checkers.NewWebhookChecker(pollingPeriod, webhooksLabelSelector, webhooksAnnotationSelector, kubeconfigPath, &exporters.WebhookExporter{})
+		configChecker := checkers.NewWebhookChecker(pollingPeriod, webhooksLabelSelector, webhooksAnnotationSelector, kubeconfigPath, &exporters.WebhookExporter{ExcludeCNGlobs: excludeCertCNGlobs, ExcludeIssuerGlobs: excludeCertIssuerGlobs})
 		go configChecker.StartChecking()
 	}
 

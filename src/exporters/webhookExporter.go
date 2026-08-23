@@ -1,11 +1,14 @@
 package exporters
 
 import (
+	"github.com/joe-elliott/cert-exporter/src/args"
 	"github.com/joe-elliott/cert-exporter/src/metrics"
 )
 
 // WebhookExporter exports PEM file certs
 type WebhookExporter struct {
+	ExcludeCNGlobs     args.GlobArgs
+	ExcludeIssuerGlobs args.GlobArgs
 }
 
 // ExportMetrics exports the provided PEM file
@@ -14,6 +17,7 @@ func (c *WebhookExporter) ExportMetrics(bytes []byte, typeName, webhookName, adm
 	if err != nil {
 		return err
 	}
+	metricCollection = filterMetrics(metricCollection, c.ExcludeCNGlobs, c.ExcludeIssuerGlobs)
 
 	for _, metric := range metricCollection {
 		labels := metrics.AppendSerial([]string{typeName, metric.issuer, metric.cn, webhookName, admissionReviewVersionName}, metric.serial)

@@ -1,11 +1,14 @@
 package exporters
 
 import (
+	"github.com/joe-elliott/cert-exporter/src/args"
 	"github.com/joe-elliott/cert-exporter/src/metrics"
 )
 
 // CertRequestExporter exports PEM file certs
 type CertRequestExporter struct {
+	ExcludeCNGlobs     args.GlobArgs
+	ExcludeIssuerGlobs args.GlobArgs
 }
 
 // ExportMetrics exports the provided PEM file
@@ -14,6 +17,7 @@ func (c *CertRequestExporter) ExportMetrics(bytes []byte, certrequest, certreque
 	if err != nil {
 		return err
 	}
+	metricCollection = filterMetrics(metricCollection, c.ExcludeCNGlobs, c.ExcludeIssuerGlobs)
 
 	for _, metric := range metricCollection {
 		labels := metrics.AppendSerial([]string{metric.issuer, metric.cn, certrequest, certrequestNamespace}, metric.serial)

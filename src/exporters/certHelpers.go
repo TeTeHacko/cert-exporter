@@ -5,12 +5,16 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"unicode"
 
 	"software.sslmate.com/src/go-pkcs12"
+
+	"github.com/joe-elliott/cert-exporter/src/args"
 )
 
 type certMetric struct {
@@ -131,4 +135,47 @@ func parseAsPEM(certBytes []byte) (bool, []certMetric, error) {
 		metrics = append(metrics, metric)
 	}
 	return true, metrics, nil
+}
+
+// matchGlobs reports whether s matches any of the given glob patterns.
+// An empty s matches only an explicit "" or "*" pattern, so certs without
+// the attribute are not swept up by broad globs accidentally.
+func matchGlobs(s string, globs args.GlobArgs) bool {
+	if s == "" {
+		for _, pattern := range globs {
+			if pattern == "" || pattern == "*" {
+				return true
+			}
+		}
+		return false
+	}
+	for _, pattern := range globs {
+		matched, err := filepath.Match(pattern, s)
+		if err != nil {
+			slog.Warn("Malformed glob pattern", "pattern", pattern, "value", s, "err", err)
+			continue
+		}
+		if matched {
+			return true
+		}
+	}
+	return false
+}
+
+// filterMetrics drops metrics whose CN or issuer matches the exclude globs.
+func filterMetrics(metrics []certMetric, excludeCNGlobs, excludeIssuerGlobs args.GlobArgs) []certMetric {
+	if len(excludeCNGlobs) == 0 && len(excludeIssuerGlobs) == 0 {
+		return metrics
+	}
+	filtered := make([]certMetric, 0, len(metrics))
+	for _, m := range metrics {
+		if len(excludeCNGlobs) > 0 && matchGlobs(m.cn, excludeCNGlobs) {
+			continue
+		}
+		if len(excludeIssuerGlobs) > 0 && matchGlobs(m.issuer, excludeIssuerGlobs) {
+			continue
+		}
+		filtered = append(filtered, m)
+	}
+	return filtered
 }

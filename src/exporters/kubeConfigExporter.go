@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/joe-elliott/cert-exporter/src/args"
 	"github.com/joe-elliott/cert-exporter/src/kubeconfig"
 	"github.com/joe-elliott/cert-exporter/src/metrics"
 )
 
 // KubeConfigExporter exports kubeconfig certs
 type KubeConfigExporter struct {
+	ExcludeCNGlobs     args.GlobArgs
+	ExcludeIssuerGlobs args.GlobArgs
 }
 
 // ExportMetrics exports all certs in the passed in kubeconfig file
@@ -19,6 +22,9 @@ func (c *KubeConfigExporter) ExportMetrics(file, nodeName string) error {
 	if err != nil {
 		return err
 	}
+
+	// The range variables below shadow the receiver, so grab the globs first.
+	excludeCNGlobs, excludeIssuerGlobs := c.ExcludeCNGlobs, c.ExcludeIssuerGlobs
 
 	for _, c := range k.Clusters {
 		var metricCollection []certMetric
@@ -39,6 +45,8 @@ func (c *KubeConfigExporter) ExportMetrics(file, nodeName string) error {
 		} else {
 			return fmt.Errorf("Cluster %v does not have CertAuthority or CertAuthorityData", c.Name)
 		}
+
+		metricCollection = filterMetrics(metricCollection, excludeCNGlobs, excludeIssuerGlobs)
 
 		for _, metric := range metricCollection {
 			labels := metrics.AppendSerial([]string{file, "cluster", metric.cn, metric.issuer, c.Name, nodeName}, metric.serial)
@@ -67,6 +75,8 @@ func (c *KubeConfigExporter) ExportMetrics(file, nodeName string) error {
 		} else {
 			return fmt.Errorf("User %v does not have ClientCert or ClientCertData", u.Name)
 		}
+
+		metricCollection = filterMetrics(metricCollection, excludeCNGlobs, excludeIssuerGlobs)
 
 		for _, metric := range metricCollection {
 			labels := metrics.AppendSerial([]string{file, "user", metric.cn, metric.issuer, u.Name, nodeName}, metric.serial)

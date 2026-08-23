@@ -86,6 +86,13 @@ The number of files matched by include/exclude globs across all file-based check
 **cert_exporter_error_total**  
 The total number of unexpected errors encountered by cert-exporter.  A good metric to watch to feel comfortable certs are being exported properly.
 
+**`--exclude-cert-cn-glob` / `--exclude-cert-issuer-glob` (optional)**  
+Glob patterns matched against a certificate's Common Name / issuer; matching certificates are dropped from all certificate metrics. Both flags can be repeated. Useful when a watched file or secret bundles certificates you do not care about (e.g. vendored CA chains):
+
+```
+--exclude-cert-cn-glob='*.internal' --exclude-cert-issuer-glob='Internal CA'
+```
+
 **`--include-serial-label` (optional)**  
 Default **false** (no series identity change). When **true**, every certificate metric gains a `serial` label (lowercase hex). Enable this when a single file/secret/configmap key holds multiple PEMs that share the same `cn`/`issuer`, otherwise Prometheus collapses them into one series. Enabling this will cause churn, so check your dashboards and alerts beforehand.
 
