@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,7 +202,7 @@ func TestParseAsPEM(t *testing.T) {
 	}
 }
 
-// jksWithTrustedCert builds an in-memory JKS holding one trusted certificate
+// jksWithTrustedCerts builds an in-memory JKS holding one trusted certificate
 // entry per supplied bundle, keyed by the given aliases.
 func jksWithTrustedCerts(t *testing.T, password string, certs map[string]*testutil.CertBundle) []byte {
 	t.Helper()
@@ -228,23 +229,25 @@ func jksWithTrustedCerts(t *testing.T, password string, certs map[string]*testut
 }
 
 // jksWithPrivateKey builds an in-memory JKS holding a private key entry whose
-// chain is the supplied certificate. keyPassword protects the key itself.
-func jksWithPrivateKey(t *testing.T, storePassword, keyPassword string, alias string, bundle *testutil.CertBundle) []byte {
+// chain is the supplied certificates, leaf first. keyPassword protects the key.
+func jksWithPrivateKey(t *testing.T, storePassword, keyPassword string, alias string, chain ...*testutil.CertBundle) []byte {
 	t.Helper()
 
-	key, err := x509.MarshalPKCS8PrivateKey(bundle.PrivateKey)
+	key, err := x509.MarshalPKCS8PrivateKey(chain[0].PrivateKey)
 	if err != nil {
 		t.Fatalf("MarshalPKCS8PrivateKey() failed: %v", err)
 	}
 
+	certs := make([]keystore.Certificate, 0, len(chain))
+	for _, bundle := range chain {
+		certs = append(certs, keystore.Certificate{Type: "X.509", Content: bundle.Cert.Raw})
+	}
+
 	ks := keystore.New()
 	entry := keystore.PrivateKeyEntry{
-		CreationTime: time.Now(),
-		PrivateKey:   key,
-		CertificateChain: []keystore.Certificate{{
-			Type:    "X.509",
-			Content: bundle.Cert.Raw,
-		}},
+		CreationTime:     time.Now(),
+		PrivateKey:       key,
+		CertificateChain: certs,
 	}
 	if err := ks.SetPrivateKeyEntry(alias, entry, []byte(keyPassword)); err != nil {
 		t.Fatalf("SetPrivateKeyEntry() failed: %v", err)
@@ -306,9 +309,9 @@ func TestParseAsJKSPrivateKeyChain(t *testing.T) {
 	}
 }
 
-// A key protected by its own password must not cost us the rest of the
-// keystore, so the entry is skipped rather than failing the whole file.
-func TestParseAsJKSKeyWithOwnPasswordIsSkipped(t *testing.T) {
+// A JKS stores the certificate chain of a private key entry in the clear, so a
+// key protected by its own password must not stop the chain being exported.
+func TestParseAsJKSKeyWithOwnPasswordStillExportsChain(t *testing.T) {
 	const storePassword = "changeit"
 	bundle := testutil.GenerateCertificate(t, testutil.CertConfig{CommonName: "keyed-cert", Days: 90})
 	store := jksWithPrivateKey(t, storePassword, "a-different-password", "keyed", bundle)
@@ -320,8 +323,32 @@ func TestParseAsJKSKeyWithOwnPasswordIsSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseAsJKS() returned %v, want nil", err)
 	}
-	if len(metrics) != 0 {
-		t.Fatalf("parseAsJKS() returned %d metrics, want 0", len(metrics))
+	if len(metrics) != 1 || metrics[0].cn != "keyed-cert" {
+		t.Fatalf("got %v, want a single metric for keyed-cert", metrics)
+	}
+}
+
+// A server keystore holds a leaf plus its issuers, and every certificate in
+// that chain has its own expiry worth exporting.
+func TestParseAsJKSExportsWholeChain(t *testing.T) {
+	const password = "changeit"
+	ca := testutil.GenerateCertificate(t, testutil.CertConfig{CommonName: "chain-ca", Days: 365, IsCA: true})
+	leaf := testutil.GenerateSignedCertificate(t, testutil.CertConfig{CommonName: "chain-leaf", Days: 90}, ca)
+	store := jksWithPrivateKey(t, password, password, "chained", leaf, ca)
+
+	parsed, metrics, err := parseAsJKS(store, password)
+	if !parsed || err != nil {
+		t.Fatalf("parseAsJKS() = (%v, _, %v), want (true, _, nil)", parsed, err)
+	}
+	if len(metrics) != 2 {
+		t.Fatalf("parseAsJKS() returned %d metrics, want 2 (leaf and issuer)", len(metrics))
+	}
+	got := []string{metrics[0].cn, metrics[1].cn}
+	want := []string{"chain-leaf", "chain-ca"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("metrics[%d].cn = %q, want %q (chain order should be preserved)", i, got[i], want[i])
+		}
 	}
 }
 
@@ -384,5 +411,110 @@ func TestSecondsToExpiryFromCertAsFileReadsJKS(t *testing.T) {
 
 	if _, err := secondsToExpiryFromCertAsFile(file, ""); err == nil {
 		t.Error("secondsToExpiryFromCertAsFile() with no password returned nil, want an error")
+	}
+}
+
+// The keystore decoder sizes allocations straight from the framing fields, and
+// an absurd length there fails the allocation fatally rather than returning an
+// error, so the framing is checked before the payload is handed over.
+func TestParseAsJKSRejectsImpossibleFraming(t *testing.T) {
+	// magic, version 2, one entry, tag 1 (private key), alias "a",
+	// creation date, a 4-byte key, then a chain count of 0xFFFFFFFF.
+	hostileChainCount := []byte{
+		0xfe, 0xed, 0xfe, 0xed,
+		0x00, 0x00, 0x00, 0x02,
+		0x00, 0x00, 0x00, 0x01,
+		0x00, 0x00, 0x00, 0x01,
+		0x00, 0x01, 'a',
+		0x00, 0x00, 0x01, 0xa0, 0x81, 0x6b, 0x52, 0x3c,
+		0x00, 0x00, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04,
+		0xff, 0xff, 0xff, 0xff,
+	}
+	// The same shape, but the impossible number is a certificate length.
+	hostileCertLen := []byte{
+		0xfe, 0xed, 0xfe, 0xed,
+		0x00, 0x00, 0x00, 0x02,
+		0x00, 0x00, 0x00, 0x01,
+		0x00, 0x00, 0x00, 0x02,
+		0x00, 0x01, 'a',
+		0x00, 0x00, 0x01, 0xa0, 0x81, 0x6b, 0x52, 0x3c,
+		0x00, 0x05, 'X', '.', '5', '0', '9',
+		0xf0, 0x00, 0x00, 0x00,
+	}
+	// An entry count no payload of this size could carry.
+	hostileEntryCount := []byte{
+		0xfe, 0xed, 0xfe, 0xed,
+		0x00, 0x00, 0x00, 0x02,
+		0x7f, 0xff, 0xff, 0xff,
+	}
+	// A tag the format does not define.
+	unknownTag := []byte{
+		0xfe, 0xed, 0xfe, 0xed,
+		0x00, 0x00, 0x00, 0x02,
+		0x00, 0x00, 0x00, 0x01,
+		0x00, 0x00, 0x00, 0x09,
+		0x00, 0x01, 'a',
+		0x00, 0x00, 0x01, 0xa0, 0x81, 0x6b, 0x52, 0x3c,
+	}
+
+	for name, payload := range map[string][]byte{
+		"chain count": hostileChainCount,
+		"cert length": hostileCertLen,
+		"entry count": hostileEntryCount,
+		"unknown tag": unknownTag,
+		"header only": {0xfe, 0xed, 0xfe, 0xed},
+		"bad version": {0xfe, 0xed, 0xfe, 0xed, 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00},
+	} {
+		t.Run(name, func(t *testing.T) {
+			parsed, metrics, err := parseAsJKS(payload, "changeit")
+			if !parsed {
+				t.Error("parseAsJKS() reported a format mismatch, want the magic number recognised")
+			}
+			if err == nil {
+				t.Error("parseAsJKS() returned nil, want an error for impossible framing")
+			}
+			if metrics != nil {
+				t.Errorf("parseAsJKS() returned %v, want no metrics", metrics)
+			}
+		})
+	}
+}
+
+// A well-formed keystore must survive the framing check, including the
+// trailing digest accounting.
+func TestValidateJKSFramingAcceptsRealKeystores(t *testing.T) {
+	const password = "changeit"
+	ca := testutil.GenerateCertificate(t, testutil.CertConfig{CommonName: "framing-ca", Days: 365, IsCA: true})
+	leaf := testutil.GenerateSignedCertificate(t, testutil.CertConfig{CommonName: "framing-leaf", Days: 90}, ca)
+
+	stores := map[string][]byte{
+		"trusted entries":  jksWithTrustedCerts(t, password, map[string]*testutil.CertBundle{"one": ca, "two": leaf}),
+		"private key":      jksWithPrivateKey(t, password, password, "keyed", leaf),
+		"multi-cert chain": jksWithPrivateKey(t, password, password, "chained", leaf, ca),
+		"empty keystore":   jksWithTrustedCerts(t, password, nil),
+	}
+
+	for name, store := range stores {
+		t.Run(name, func(t *testing.T) {
+			if err := validateJKSFraming(store); err != nil {
+				t.Errorf("validateJKSFraming() = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestJCEKSReportsItsOwnFormat(t *testing.T) {
+	jceks := append([]byte{0xce, 0xce, 0xce, 0xce}, make([]byte, 32)...)
+
+	if parsed, _, _ := parseAsJKS(jceks, ""); parsed {
+		t.Error("parseAsJKS() claimed a JCEKS payload is a JKS keystore")
+	}
+
+	_, err := secondsToExpiryFromCertAsBytes(jceks, "")
+	if err == nil {
+		t.Fatal("secondsToExpiryFromCertAsBytes() returned nil, want an error")
+	}
+	if !strings.Contains(err.Error(), "jceks") {
+		t.Errorf("error %q does not mention jceks, so the operator cannot tell what the file is", err)
 	}
 }

@@ -94,7 +94,9 @@ File holding the password used to open password-protected certificate files foun
 --include-cert-glob='/etc/pki/*.jks' --cert-password-file=/etc/cert-exporter/keystore-password
 ```
 
-The same password unlocks private key entries inside a JKS. An entry whose key carries a password of its own is skipped, and the rest of the keystore is still exported. Certificates in Kubernetes secrets keep taking their password from the `password` key of the secret, unchanged.
+Only certificates are read out of a keystore, and a JKS keeps the certificate chain of a private key entry in the clear, so an entry whose key carries a password of its own is exported like any other. Certificates in Kubernetes secrets keep taking their password from the `password` key of the secret, unchanged.
+
+The password applies to every file `--include-cert-glob` matches, so a password-less PKCS#12 in the same set will stop parsing once the flag is set; keep protected and unprotected keystores in separate globs. The file is read once at startup, which means a rotated password needs a restart. A JKS always needs its store password, even one holding nothing but trusted certificates.
 
 Note that a keystore commonly holds several certificates sharing a `cn` and `issuer`, which Prometheus collapses into a single series. Enable `--include-serial-label` alongside this flag to keep them apart.
 
