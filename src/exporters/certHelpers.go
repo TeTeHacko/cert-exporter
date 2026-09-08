@@ -148,7 +148,8 @@ const certGlobSeparator = "\x00"
 // "**" match anything, and "?" matches "/" as well.
 //
 // NUL does not occur in an X.509 name in practice, but Go does decode one from
-// a UTF8String, so it is remapped first to keep the folding injective.
+// a UTF8String, so it is remapped first: without that, a "/"-bearing pattern
+// would match a CN containing NUL.
 func flattenGlobPath(s string) string {
 	s = strings.ReplaceAll(s, certGlobSeparator, "\uFFFD")
 	return strings.ReplaceAll(s, "/", certGlobSeparator)
@@ -163,7 +164,7 @@ func flattenGlobPath(s string) string {
 func ValidateCertGlobs(globs []string) error {
 	for _, pattern := range globs {
 		if !doublestar.ValidatePattern(flattenGlobPath(pattern)) {
-			return fmt.Errorf("malformed glob pattern %q", pattern)
+			return fmt.Errorf("malformed glob pattern %q; escape glob metacharacters such as [ { } with a backslash", pattern)
 		}
 	}
 	return nil

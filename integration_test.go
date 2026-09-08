@@ -271,7 +271,6 @@ func TestEndToEnd_ErrorMetric(t *testing.T) {
 	}
 }
 
-// Helper function to get map keys
 // TestEndToEnd_ExcludeCertGlobs exercises the exclude flags through
 // ExportMetrics, including a URI-style CN whose slashes a wildcard has to
 // cross.
@@ -348,6 +347,7 @@ func TestEndToEnd_ExcludeCertGlobs(t *testing.T) {
 	}
 }
 
+// Helper function to get map keys
 func getKeys(m map[string]float64) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
