@@ -71,8 +71,8 @@ var (
 func init() {
 	flag.Var(&includeCertGlobs, "include-cert-glob", "File globs to include when looking for certs.")
 	flag.Var(&excludeCertGlobs, "exclude-cert-glob", "File globs to exclude when looking for certs.")
-	flag.Var(&excludeCertCNGlobs, "exclude-cert-cn-glob", "Glob patterns for certificate Common Names (CNs) to exclude from metrics. Can be specified multiple times.")
-	flag.Var(&excludeCertIssuerGlobs, "exclude-cert-issuer-glob", "Glob patterns for certificate issuers to exclude from metrics. Can be specified multiple times.")
+	flag.Var(&excludeCertCNGlobs, "exclude-cert-cn-glob", "Exclude certs whose cn label matches this glob from all cert metrics.")
+	flag.Var(&excludeCertIssuerGlobs, "exclude-cert-issuer-glob", "Exclude certs whose issuer label matches this glob from all cert metrics.")
 	flag.Var(&includeKubeConfigGlobs, "include-kubeconfig-glob", "File globs to include when looking for kubeconfigs.")
 	flag.Var(&excludeKubeConfigGlobs, "exclude-kubeconfig-glob", "File globs to exclude when looking for kubeconfigs.")
 	flag.StringVar(&prometheusPath, "prometheus-path", "/metrics", "The path to publish Prometheus metrics to.")
@@ -119,6 +119,18 @@ func init() {
 
 func main() {
 	flag.Parse()
+
+	// Pattern validity depends only on the pattern, so check once here rather
+	// than once per certificate on every poll.
+	if err := exporters.ValidateCertGlobs(excludeCertCNGlobs); err != nil {
+		slog.Error("Invalid --exclude-cert-cn-glob", "error", err)
+		os.Exit(1)
+	}
+	if err := exporters.ValidateCertGlobs(excludeCertIssuerGlobs); err != nil {
+		slog.Error("Invalid --exclude-cert-issuer-glob", "error", err)
+		os.Exit(1)
+	}
+
 	metrics.Init(prometheusExporterMetricsDisabled, nil, includeSerialLabel)
 
 	// Check if --logtostderr was explicitly set

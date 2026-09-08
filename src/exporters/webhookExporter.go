@@ -1,14 +1,13 @@
 package exporters
 
 import (
-	"github.com/joe-elliott/cert-exporter/src/args"
 	"github.com/joe-elliott/cert-exporter/src/metrics"
 )
 
 // WebhookExporter exports PEM file certs
 type WebhookExporter struct {
-	ExcludeCNGlobs     args.GlobArgs
-	ExcludeIssuerGlobs args.GlobArgs
+	ExcludeCNGlobs     []string
+	ExcludeIssuerGlobs []string
 }
 
 // ExportMetrics exports the provided PEM file
