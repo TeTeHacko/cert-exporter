@@ -1,6 +1,7 @@
 package exporters
 
 import (
+	"bytes"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -10,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/pavlo-v-chernykh/keystore-go/v4"
 	"software.sslmate.com/src/go-pkcs12"
 )
 
@@ -24,13 +26,13 @@ type certMetric struct {
 	serial string
 }
 
-func secondsToExpiryFromCertAsFile(file string) ([]certMetric, error) {
+func secondsToExpiryFromCertAsFile(file, certPassword string) ([]certMetric, error) {
 	certBytes, err := os.ReadFile(file)
 	if err != nil {
 		return []certMetric{}, err
 	}
 
-	return secondsToExpiryFromCertAsBytes(certBytes, "")
+	return secondsToExpiryFromCertAsBytes(certBytes, certPassword)
 }
 
 func secondsToExpiryFromCertAsBase64String(s string) ([]certMetric, error) {
@@ -54,21 +56,32 @@ func secondsToExpiryFromCertAsBytes(certBytes []byte, certPassword string) ([]ce
 	if parsed {
 		return metrics, nil
 	}
+	// JKS keystores are identified by their own magic number, so a failure
+	// there is reported in preference to the PEM and PKCS#12 guesses.
+	parsed, metrics, jksErr := parseAsJKS(certBytes, certPassword)
+	if parsed {
+		return metrics, jksErr
+	}
 	// Prefer the PEM error when the payload is clearly textual; PKCS#12 ASN.1
 	// errors on garbage text are noisy and change across crypto/asn1 versions.
 	if pemErr != nil && !looksLikePKCS12(certBytes) {
-		return nil, fmt.Errorf("failed to parse as pem and pkcs12: %w", pemErr)
+		return nil, fmt.Errorf("failed to parse as pem, pkcs12 or jks: %w", pemErr)
 	}
 	if pkcsErr != nil {
-		return nil, fmt.Errorf("failed to parse as pem and pkcs12: %w", pkcsErr)
+		return nil, fmt.Errorf("failed to parse as pem, pkcs12 or jks: %w", pkcsErr)
 	}
-	return nil, fmt.Errorf("failed to parse as pem and pkcs12")
+	return nil, fmt.Errorf("failed to parse as pem, pkcs12 or jks")
 }
 
 // looksLikePKCS12 reports whether data might be a PKCS#12/PFX binary.
 // PKCS#12 is an ASN.1 SEQUENCE (tag 0x30); PEM text never starts that way.
 func looksLikePKCS12(data []byte) bool {
 	return len(data) > 0 && data[0] == 0x30
+}
+
+// looksLikeJKS reports whether data starts with the JKS magic number.
+func looksLikeJKS(data []byte) bool {
+	return len(data) >= 4 && data[0] == 0xfe && data[1] == 0xed && data[2] == 0xfe && data[3] == 0xed
 }
 
 func getCertificateMetrics(cert *x509.Certificate) certMetric {
@@ -96,6 +109,59 @@ func parseAsPKCS(certBytes []byte, certPassword string) (bool, []certMetric, err
 		metric := getCertificateMetrics(cert)
 		metrics = append(metrics, metric)
 	}
+	return true, metrics, nil
+}
+
+// parseAsJKS reads certificates out of a Java KeyStore, covering both trusted
+// certificate entries and the chains attached to private key entries.
+//
+// The keystore password also unlocks private key entries. A key protected by a
+// password of its own is skipped rather than failing the whole keystore, since
+// the certificates of the other entries are still worth exporting.
+//
+// A keystore can hold several entries sharing a cn and issuer, which collapse
+// into one Prometheus series unless --include-serial-label is set.
+func parseAsJKS(certBytes []byte, certPassword string) (bool, []certMetric, error) {
+	if !looksLikeJKS(certBytes) {
+		return false, nil, nil
+	}
+
+	ks := keystore.New()
+	if err := ks.Load(bytes.NewReader(certBytes), []byte(certPassword)); err != nil {
+		// The magic number says JKS, so this is a real failure (typically a
+		// wrong or missing password), not a format mismatch.
+		return true, nil, fmt.Errorf("failed to load jks keystore: %w", err)
+	}
+
+	var metrics []certMetric
+	for _, alias := range ks.Aliases() {
+		switch {
+		case ks.IsTrustedCertificateEntry(alias):
+			entry, err := ks.GetTrustedCertificateEntry(alias)
+			if err != nil {
+				return true, metrics, fmt.Errorf("failed to read trusted certificate entry %q: %w", alias, err)
+			}
+			cert, err := x509.ParseCertificate(entry.Certificate.Content)
+			if err != nil {
+				return true, metrics, fmt.Errorf("failed to parse trusted certificate %q: %w", alias, err)
+			}
+			metrics = append(metrics, getCertificateMetrics(cert))
+		case ks.IsPrivateKeyEntry(alias):
+			entry, err := ks.GetPrivateKeyEntry(alias, []byte(certPassword))
+			if err != nil {
+				// The key has its own password; its chain stays unexported.
+				continue
+			}
+			for i, chainCert := range entry.CertificateChain {
+				cert, err := x509.ParseCertificate(chainCert.Content)
+				if err != nil {
+					return true, metrics, fmt.Errorf("failed to parse certificate %d in chain of %q: %w", i, alias, err)
+				}
+				metrics = append(metrics, getCertificateMetrics(cert))
+			}
+		}
+	}
+
 	return true, metrics, nil
 }
 
