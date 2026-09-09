@@ -518,3 +518,109 @@ func TestJCEKSReportsItsOwnFormat(t *testing.T) {
 		t.Errorf("error %q does not mention jceks, so the operator cannot tell what the file is", err)
 	}
 }
+
+// Aliases come back in a stable order, so that when several certificates share
+// a cn and issuer the same one wins every poll instead of flipping around with
+// Go's map iteration order.
+func TestParseAsJKSOrdersAliases(t *testing.T) {
+	const password = "changeit"
+	first := testutil.GenerateCertificate(t, testutil.CertConfig{CommonName: "apple-cn", Days: 90, IsCA: true})
+	second := testutil.GenerateCertificate(t, testutil.CertConfig{CommonName: "zebra-cn", Days: 90, IsCA: true})
+
+	store := jksWithTrustedCerts(t, password, map[string]*testutil.CertBundle{
+		"zebra": second,
+		"apple": first,
+	})
+
+	for i := 0; i < 5; i++ {
+		_, metrics, err := parseAsJKS(store, password)
+		if err != nil {
+			t.Fatalf("parseAsJKS() returned %v, want nil", err)
+		}
+		if len(metrics) != 2 {
+			t.Fatalf("parseAsJKS() returned %d metrics, want 2", len(metrics))
+		}
+		if metrics[0].cn != "apple-cn" || metrics[1].cn != "zebra-cn" {
+			t.Fatalf("got order [%s %s], want [apple-cn zebra-cn] on every parse", metrics[0].cn, metrics[1].cn)
+		}
+	}
+}
+
+// The keystore stores an alias verbatim but looks it up case-insensitively
+// unless told otherwise, so without case-exact aliases an entry whose alias
+// carries uppercase characters resolves to no entry type at all.
+func TestParseAsJKSMixedCaseAlias(t *testing.T) {
+	const password = "changeit"
+	bundle := testutil.GenerateCertificate(t, testutil.CertConfig{CommonName: "mixed-case-cn", Days: 90, IsCA: true})
+
+	// The store has to be written case-exactly as well, otherwise the alias is
+	// lowercased on the way in and the payload cannot exercise the lookup.
+	ks := keystore.New(keystore.WithCaseExactAliases())
+	entry := keystore.TrustedCertificateEntry{
+		CreationTime: time.Now(),
+		Certificate:  keystore.Certificate{Type: "X.509", Content: bundle.Cert.Raw},
+	}
+	if err := ks.SetTrustedCertificateEntry("MyServerCert", entry); err != nil {
+		t.Fatalf("SetTrustedCertificateEntry() failed: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := ks.Store(&buf, []byte(password)); err != nil {
+		t.Fatalf("Store() failed: %v", err)
+	}
+	store := buf.Bytes()
+
+	parsed, metrics, err := parseAsJKS(store, password)
+	if !parsed {
+		t.Fatal("parseAsJKS() reported the payload is not a keystore")
+	}
+	if err != nil {
+		t.Fatalf("parseAsJKS() returned %v, want nil", err)
+	}
+	if len(metrics) != 1 || metrics[0].cn != "mixed-case-cn" {
+		t.Fatalf("got %v, want a single metric for mixed-case-cn", metrics)
+	}
+}
+
+// Version 1 keystores omit the per-certificate type string that version 2
+// carries. keystore-go only ever writes version 2, so the framing walk's
+// version branches are exercised with a hand-built payload.
+func TestValidateJKSFramingAcceptsVersion1(t *testing.T) {
+	trusted := func() []byte {
+		var b []byte
+		b = append(b, 0xfe, 0xed, 0xfe, 0xed) // magic
+		b = append(b, 0x00, 0x00, 0x00, 0x01) // version 1
+		b = append(b, 0x00, 0x00, 0x00, 0x01) // one entry
+		b = append(b, 0x00, 0x00, 0x00, 0x02) // tag: trusted certificate
+		b = append(b, 0x00, 0x03, 'c', 'a', '1')
+		b = append(b, 0, 0, 0, 0, 0, 0, 0, 0) // creation date
+		b = append(b, 0x00, 0x00, 0x00, 0x04) // certificate length, no type string
+		b = append(b, 0xde, 0xad, 0xbe, 0xef)
+		return append(b, make([]byte, jksDigestSize)...)
+	}()
+
+	privateKey := func() []byte {
+		var b []byte
+		b = append(b, 0xfe, 0xed, 0xfe, 0xed)
+		b = append(b, 0x00, 0x00, 0x00, 0x01) // version 1
+		b = append(b, 0x00, 0x00, 0x00, 0x01)
+		b = append(b, 0x00, 0x00, 0x00, 0x01) // tag: private key
+		b = append(b, 0x00, 0x03, 'k', 'e', 'y')
+		b = append(b, 0, 0, 0, 0, 0, 0, 0, 0)
+		b = append(b, 0x00, 0x00, 0x00, 0x02, 0x01, 0x02) // encrypted key
+		b = append(b, 0x00, 0x00, 0x00, 0x02)             // two chain certificates
+		b = append(b, 0x00, 0x00, 0x00, 0x01, 0xaa)       // no type string in version 1
+		b = append(b, 0x00, 0x00, 0x00, 0x01, 0xbb)
+		return append(b, make([]byte, jksDigestSize)...)
+	}()
+
+	for name, payload := range map[string][]byte{
+		"trusted certificate": trusted,
+		"private key chain":   privateKey,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := validateJKSFraming(payload); err != nil {
+				t.Errorf("validateJKSFraming() = %v, want nil for a version 1 keystore", err)
+			}
+		})
+	}
+}
